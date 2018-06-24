@@ -1,0 +1,271 @@
+---
+title: "ISL Ch9 Support Vector Machines"
+author: "Andrew Washburn"
+date: "6/23/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Ch.9 Support Vector Machines
+
+## 9.1 Maximal Margin Classifier pg.338
+
+### The Hyperplane
+
+- *Hyperplane*: in a $p$-dimensional space, a hyperplane is a flat affine (need not pass through the origin) subspace of dimension $p-1$. 
+  - For example, in 2-dimensions, a hyperplane is a one-dimensional subspace --- a line.
+Mathematically $\beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_p X_p = 0$ and if a point $X = (X_1, X_2, \ldots, X_p)^T$ in $p$-dimensional space satifies this, then $X$ lies on the hyperplane. But $X$ can also lie above or below the hyperplane, and we can think of it as a divider. 
+
+Suppose we have a data matrix $\mathbf X_{n \times p}$ with $n$ training observations and $p$ predictors, and the response takes on two classes $\mathbf y \in \{-1, 1\}$. Now we try to perfectly separate the response given the data using a hyperplane. We can use the hyperplane equation $\mathbf f = \mathbf X^* \beta$ to determine whether a point is positive or negative as well as the magnitude of $| \mathbf f |$. The larger the magnitude, the more certain we are of a certain classification.
+
+### The Maximal Margin Classifier
+
+If a hyperplane perfectly classifies the data, there can be an infinite number of solutions. Thus we use the *optimal separating hyperplane* that computes the hyperplane which is farthest away (maximum margin) from the training observations. The support vectors, based on a subset of the data, are the vectors which are the difference between the hyperplane and $\vec{\mathbf f}$. 
+
+To construct the maximal margin classifier, we solve the following optimization problem
+
+$$\begin{eqnarray}
+&\max_{\beta_0, \beta_1, \ldots, \beta_p, M}   \quad M \\
+\text{subject to } &\beta^T \beta = 1 \\
+&\mathbf y^T \mathbf X \beta \geq M 
+\end{eqnarray}$$
+
+The second constraint guarantees that the observations are correctly classified. The first constraint (one can show) sets the perpendicular distance from the hyperplane (the support vector) is given by $\mathbf y^T \mathbf X \beta$. The solution details can be found in *Essentials of Statistical Learning* page 420; it looks hard...
+
+In the non-separable case, where there is no solution for $M \geq 0$, we can use the *support vector classifier*.
+
+## 9.2 Support Vector Classifiers pg.344
+
+The maximal margin hyperplane tries to prefectly classify all observations, but in the non-separable case, and instances of outliers can influence a low-margin classifier. The *support vector classifier* (or *soft margin classifier*) has greater robustness to individual observations and better classification on most of the training observations. 
+
+The support vector classifier is computed from the following optimization problem
+
+$$\begin{eqnarray}
+&\max_{\beta_0, \beta_1, \ldots, \beta_p, \epsilon_1, \ldots, \epsilon_n, M}   \quad M \\
+\text{subject to } &\beta^T \beta = 1 \\
+&\mathbf y^T \mathbf X \beta \geq M (1 - \epsilon) \\
+& \epsilon_i \geq 0, \quad \sum_{i = 1}^n \epsilon_i \leq C
+\end{eqnarray}$$
+
+Where $C$ is a non-negative tuning parameter, $M$ is the margin width, and $\epsilon$ is a slack variable that allows individual observations be on the wrong side of the hyperplane. If a given observation has $\epsilon_i > 0$, it is on the wrong side of the margin, and if $\epsilon_i >1$ the observation is on the wrong side of the hyperplane and misclassified. The cost parameter $C$ controls how much slack is in the soft margin classifier. For $C = 0 \rightarrow \epsilon_1 = \ldots = \epsilon_n = 0$ which is just the maximal margin classifier. In other words $C$ control the bias-variance tradeoff; small $C$ has narrow margins that are rarely violated (high variance), while large $C$ has wide margins but more violations (high bias).
+An interesting property of the optimization problem is only observations that have crossed the margin $\epsilon_i > 0$ affect the hyperplane; these are the *support vectors*. The fact that the support vectors ignore outliers is a hugely useful robustness feature, not seen in other learning methods previously discussed.
+
+## 9.3 Support Vector Machines pg.349
+
+Support vector classifiers only create linear hyperplanes. We now extend it to nonlinear forms, just like we did with linear regression. Instead of fitting a hyperplane using $X_1, X_2, \ldots, X_p$, we can fit a quadratic polynomial $X_1, X_1^2, X_2, X_2^2 \ldots, X_p, X_p^2$. In the enlarged feature space ($p \rightarrow 2p$) the decision boundary is linear, but in the original feature space it is quadratic. But there are many ways to expand the feature space (cubic, interactions, etc.) potentially leading to infeasible computations.
+The *support vector machine* (SVM) is an extension of the support vector classifier that extends the feature space using *kernels*. The solution details can be found in *Essentials of Statistical Learning* page 423. The solution only involves the inner products of the observations; the inner product of two observations $x_i, x_{i'}$ is given by $\langle x_i, x_{i'} \rangle = \sum_{j = 1} ^p x_{ij} x_{i'j}$. It can be shown that the linear support vector classifier can be represented as 
+$$
+f(x) = \beta_0 + \sum_{i = 1}^n \alpha_i \langle x_i, x_{i'} \rangle
+$$
+Where there are $n$ parameters $\alpha$. To estimate the parameters $\alpha$ and $\beta_0$, all we need are the $\binom{n}{2}$ inner products $\langle x_i, x_{i'} \rangle$ between all pairs of training observations. It turns out that $\alpha_i$ is nonzero only for the support vectors in the solution. So if $S$ is the collection of indicies of these support points, the space is reduced from $n \rightarrow S$.
+Now suppose every the inner product appears, we replace is with a *generalization* of the inner product of the form $K (x_i, x_{i'})$ where $K$ is some function that we will refer to as a *kernel* (a function that quantifies the similarity of two observations). A linear kernel quantifies the correlation of an observation pair using Pearson (standard) correlation. Or we can use a polynomial kernel that fits a flexible decision boundaryin a higher dimensional space involving polynomials of degree $d$. Another popular nonlinear kernel is the radial kernel which creates a regional decision boundary. The way the radial kernel works is if a given test observation $x^*$ is far from training observation $x_i$ in terms of Euclidian distance $|| x^* - x_i||_2^2$, then the kernel will be very tiny and play virtually no role in $f(x^*)$. Since classification for $x^*$ is based on the sign of $f(x^*)$, training observations far away will have little effect on it.
+
+$$ \begin{eqnarray}
+K (x_i, x_{i'}) &=& \sum_{j = 1}^p x_{ij} x_{i'j} \qquad &\text{Linear kernel} \\
+K (x_i, x_{i'}) &=& (1 + \sum_{j = 1}^p x_{ij} x_{i'j})^d \qquad &\text{Polynomial kernel} \\
+K (x_i, x_{i'}) &=& \exp (-\gamma \sum_{j = 1}^p x_{ij} x_{i'j})^2) \qquad &\text{Radial kernel} 
+\end{eqnarray} $$
+
+The main advantage of using a kernel rather than an enlarged feature space is computational: it only needs to compute $K(x_i, x_{i'})$ for all $\binom{n}{2}$  distinct pairs $i, i'$. 
+
+## 9.4 Multi-Class SVM's page 355
+
+- One-Versus-One Classification: for $K > 2$ classes constructs $\binom{K}{2}$ SVM's, each compares a pair of classes. We assign a test point to the class that has the most frequent classification.
+- One-Versus-All Classification: fit a SVM comparing one of the $K$ classes to the other $K-1$ classes.
+
+## Ch 9 SVM Lab
+
+```{r SVM lab}
+library(e1071) 
+
+set.seed(1)
+x <- matrix(rnorm(20*2), ncol = 2)
+y <- c(rep(-1, 10), rep(1,10))
+x[y == 1,] <- x[y == 1,] + 1
+plot(x, col = (3 - y)) # two groups with means at -.5, .5
+
+dat <- data.frame(x = x, 
+                  y = as.factor(y))
+svmfit <- svm(y ~ ., data = dat, kernel = "linear", cost = .10, scale = F)
+plot(svmfit, dat)
+svmfit$index # indexes of the support vectors from the original dataset
+summary(svmfit)
+# smaller cost uses a larger number of support vectors because the margin is larger
+
+# tune the cost using CV
+set.seed(1)
+tuneOut <- tune(svm, y ~ ., data = dat, kernel = "linear",
+                ranges = list(cost = c(0.001, 0.01, 0.1, 1, 5, 10, 100)))
+summary(tuneOut)
+bestMod <- tuneOut$best.model
+
+xtest <- matrix(rnorm(20*2), ncol = 2)
+ytest <- sample(c(-1, 1), 20, rep = T)
+xtest[ytest == 1,] <- xtest[ytest == 1,] + 1
+testData <- data.frame(x = xtest, y = as.factor(ytest))
+ypred <- predict(bestMod, testData)
+table(predict = ypred, truth = testData$y)
+
+# now consider the linearly separable case
+x[y == 1,] <- x[y == 1,] + 0.5
+plot(x, col = (y + 5) / 2, pch = 19)
+dat <- data.frame(x = x, y = as.factor(y))
+svmfit <- svm(y ~ ., data = dat, kernel = "linear", cost = 1e+05)
+plot(svmfit, dat)
+```
+
+```{r SVM}
+set.seed(1)
+x <- matrix(rnorm(200*2), ncol = 2)
+x[1:100,] <- x[1:100,] + 2
+x[101:150, ] <- x[101:150,] - 2
+y <- c(rep(1,150), rep(2,50))
+dat <- data.frame(x = x, y = as.factor(y))
+plot(x, col = y)
+
+train <- sample(200, 100)
+svmfit <- svm(y ~ ., data = dat[train,], kernel = "radial", gamma = 1, cost = 1)
+plot(svmfit, dat[train,])
+summary(svmfit)
+
+set.seed(1)
+tuneOut <- tune(svm, y ~ ., data = dat[train,], kernel = "radial",
+                ranges = list(cost = c(0.1, 1, 10, 100, 1000),
+                              gamma = c(0.5, 1, 2, 3, 4)))
+#summary(tuneOut)
+table(true = dat[-train, "y"], pred = predict(tuneOut$best.model, newdata = dat[-train,]))
+```
+
+```{r ROC Curves}
+#install.packages("ROCR")
+library(ROCR)
+
+rocplot <- function(pred, truth, ...) {
+  predob <- prediction(pred, truth)
+  perf <- performance(predob, "tpr", "fpr")
+  plot(perf, ...)
+}
+
+svmfit.opt <- svm(y ~ ., data = dat[train,], kernel = "radial",
+                  gamma = 2, cost = 1, decision.values = T)
+fitted <- attributes(predict(svmfit.opt, dat[train,], decision.values = T))$decision.values
+rocplot(fitted, dat[train, "y"], main = "Training Data")
+
+svmfit.flex <- svm(y ~ ., data = dat[train,], kernel = "radial",
+                  gamma = 50, cost = 1, decision.values = T)
+fitted <- attributes(predict(svmfit.flex, dat[train,], decision.values = T))$decision.values
+rocplot(fitted, dat[train, "y"], main = "Training Data")
+
+fitted <- attributes(predict(svmfit.opt, dat[-train,], decision.values = T))$decision.values
+rocplot(fitted, dat[-train, "y"], main = "Training Data")
+fitted <- attributes(predict(svmfit.flex, dat[-train,], decision.values = T))$decision.values
+rocplot(fitted, dat[-train, "y"], add = T, col = "red")
+```
+
+```{r MultiClass SVM}
+set.seed(1)
+x <- rbind(x, matrix(rnorm(50*2), ncol = 2))
+y <- c(y, rep(0, 50))
+x[y == 0, 2] <- x[y == 0, 2] + 2
+dat <- data.frame(x = x, y = as.factor(y))
+plot(x, col = (y+1))
+svmfit <- svm(y ~ ., data = dat, kernel = "radial", 
+              cost = 10, gamma = 1)
+plot(svmfit, dat)
+```
+```{r Gene Expression} 
+library(ISLR)
+dat <- data.frame(x = Khan$xtrain, y = as.factor(Khan$ytrain))
+out <- svm(y ~ ., data = dat, kernel = "linear", cost = 10)
+dat.te <- data.frame(x = Khan$xtest, y = as.factor(Khan$ytest))
+pred.te <- predict(out, newdata = dat.te)
+table(predict = pred.te, True = dat.te$y)
+```
+
+## Ch9 Exercises pg 368
+
+4.
+```{r Q9.4}
+library(e1071)
+x <- seq(-4, 4, 0.05)
+x <- matrix(c(x, x^3 + rnorm(length(x), sd = 10)), ncol = 2)
+plot(x)
+y <- factor(c(rep(0, 60), rep(1,41), rep(0, 60)))
+df <- data.frame(x,y)
+
+train = sample(1:nrow(df), nrow(df) * .8, replace = T)
+#df$train[train] <- TRUE
+
+ggplot(df, aes(X1, X2, color = y)) +
+  geom_point()
+
+svm.linear <- svm(y ~ ., data = df, kernel = "linear", cost = .10, scale = F)
+summary(svm.linear)
+plot(svm.linear, df)
+
+# svm.poly <- svm(y ~ ., data = df, kernel = "polynomial", cost = .01, scale = F)
+# polynomial kernel times out
+#plot(svm.poly, df)
+
+svm.radial <- svm(y ~ ., data = df, kernel = "radial", cost = 1, scale = F)
+plot(svm.radial, df)
+
+svm.sigmoid <- svm(y ~ ., data = df, kernel = "sigmoid", cost = .10, scale = F)
+plot(svm.sigmoid, df)
+```
+
+```{r Q9.5}
+x1 <- runif(500) - 0.5
+x2 <- runif(500) - 0.5
+y <- factor(1 * (x1^2 - x2^2 > 0))
+df <- data.frame(matrix(c(x1, x2), ncol = 2), y)
+train <- sample(1:nrow(df), nrow(df)*0.8, replace = T)
+ggplot(df, aes(x1, x2, color = y)) + 
+  geom_point()
+
+fit.logit <- function(form) { 
+  logit <- glm(form, data = df, family = "binomial", subset = train)
+  y.pred <- predict(logit, newdata = df[-train,])
+  prob.pred <- exp(y.pred) / (1 + exp(y.pred)) > 0.5
+  pred.df <- data.frame(df[-train,], prob.pred)
+  ggplot(pred.df, aes(X1, X2, color = prob.pred, shape = y)) + geom_point()
+}
+fit.logit(y ~ .)
+# linear decision boundary misclassifies half the data
+fit.logit(y ~ X1 * X2 + I(X1^2) + I(X2^2))
+
+fit.svm <- function(form, kern) { 
+  svm.class <- svm(form, data = df, kernel = kern, cost = .10, scale = F, subset = train)
+  plot(svm.class, df)
+  y.pred <- predict(svm.class, newdata = df[-train,])
+  pred.df <- data.frame(df[-train,], y.pred)
+  ggplot(pred.df, aes(X1, X2, color = y.pred, shape = y)) + geom_point()
+}
+fit.svm(y ~ ., "linear")
+fit.svm(y ~ ., "polynomial")
+fit.svm(y ~ ., "radial")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

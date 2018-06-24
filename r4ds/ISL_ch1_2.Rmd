@@ -1,0 +1,158 @@
+---
+title: "Introduction to Statistical Learning Ch1, 2"
+author: "Andrew Washburn"
+date: "4/28/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ISLR); library(tidyverse)
+set.seed(1)
+```
+
+# 1. Introduction
+*Statistical learning* is a vast set of tools for *understanding data*.
+*Supervised learning*: build a statistical model relating *inputs* to *output* $y = ax + b$ (*linear model*)
+*Unsupervised learning*: understand structure of data with no outputs
+
+### *Wage Data*
+Wages for a group of males in the U.S Atlantic region.
+Examine association between `age` and `education` as well as `year`, on his `wage`.
+```{r Wage data}
+#Wage data
+ggplot(Wage, aes(age, wage)) +
+  geom_jitter(color = "grey50", alpha = 1/2) +
+  geom_smooth(se = F)
+ggplot(Wage, aes(year, wage)) +
+  geom_jitter(color = "grey50", alpha = 1/2) +
+  geom_smooth(method = "lm")
+ggplot(Wage, aes(education, wage)) +
+  geom_boxplot(aes(fill = education), show.legend = F)
+```
+### Stock Market Data
+```{r Stock Market}
+# Smarket data
+ggplot(Smarket %>% gather(day, change, c(Today, Lag1, Lag2, Lag3)), aes(Direction, change)) +
+  geom_boxplot(aes(fill = Direction), show.legend = F) +
+  facet_wrap(~ day)
+  
+```
+No obvious relationship between previous stock market movements and today's stock movement.
+
+### Gene Expression Data
+No output variables, so this is *unsupervised*, or a *clustering* problem.
+The `NCI60` dataset contains 6,830 gene expression observations and 64 cancer cell lines. Extracting the *principle components* summarizes the 6,830 observations into two dimnesions $Z_1$ and $Z_2$.
+
+### The purpose of this book
+1. Many statistical learning methods are relevant and useful in a wide range of academic and non-academic disciplines, beyond just the statistical sciences.
+2. Statistical learning should not be viewed as a series of black boxes.
+3. While it is important to know what job is performed by each cog, it is not necessary to have the skills to construct the machin inside the box! *Essentials for Statistical Learning* teaches how to build the machine in the box. *Introduction to Statistical Learning* teaches the rules of thumb on how to use the models. It's possible to read this entire book without knowledge of matrix algebra and vectors.
+4. We presume that the reader is interested in applying statistical learning methods to real-world problems. 
+
+### Notation and Simple Matrix Algebra
+$n$ is the number of distinct observations, or data point.
+$p$ is the number of variables available for prediction.
+Example: `Wage` contains $n = 3,000$ observations and $p = 12$ variables (`year, age, sex`, and more).
+
+$x_{ij}$ is the $j$th variables for the $i$th observation where $i = 1, 2, ..., n$ and $j = 1, 2, ..., p$.
+$\mathbf{X}$ denotes a $n \times p$. $x_i$ denotes the $i$th vector row of observations. $x_j$ denotes the $p$ vector variable row.
+Indicating the dimension of a particular object. $a \in \Bbb R$ means $a$ is a rela number. $a \in \Bbb R^n$ means $a$ is a vector length $n$. $\mathbf{A} \in \Bbb R^{r \times d} \text{ and } \mathbf{B} \in \Bbb R^{d \times a}$ is useful for multiplying matrices: $AB \in \Bbb R^{r \times a}$. 
+
+# 2. Statistical Learning
+Input variables $X = (X_1, X_2, ..., X_p)$ (sometimes called predictors, independent variables, or features) are associated to an output variable $Y$ (often called the response or dependent variable). The difference in the relationship is called the error $\epsilon$.
+Very generally, this relationship can be described as: 
+$$Y = f(X) + \epsilon$$
+
+### Why estimate $f$
+#### Prediction
+$$\hat{Y} = \hat{f}(X)$$
+$\hat{f}$ is treated as a black box, as long as $\hat{Y}$ provides good predictions for $Y$.
+*Reducible Error*: the accuracy of $\hat{f}$ in estimating $f$. We can work on this.
+*Irreducible Error*: the error $\epsilon$ that is also a function of $Y$. Cannot reduce this. Error is the sum of all variables that are not measured. Therefore, we cannot modify $f$ to predict on them.
+Given an estimate function and set of predictors, we can estimate $\hat{Y}$ and describe the expected value as such:
+$$E(Y - \hat{Y})^2 = \underbrace{[f(X) - \hat{f}(X)]^2}_\text{Reducible} + \underbrace{\text{Var}(\epsilon)}_\text{Irreducible}$$
+Where $E(Y - \hat{Y})^2$ is the average expected value.
+
+#### Inference
+Sometimes we want to know how changes in $X$ affect changes in $Y$. Now we need to know the form of $f$ in the relationship $Y = f(X) + \epsilon$. 
+Some questions could be:
+-Which predictors are associated with the response?
+-What is the relationship between the response and each predictor?
+-Can the relationship between $Y$ and each predictor be adequately summarized using a linear equation, or is the relationship more complicated?
+
+### How to estimate $f$?
+*Training Data*: observations used to create a model.
+Our goal: apply a statistical learning method to find a function $\hat{f}$ such that $Y \approx \hat{f}(X)$ for any observation $(X,Y)$. 
+
+#### Parametric Methods
+Parametric simply means reducing the problem of finding $f$ to estimating a set of coefficients. The procedure follows in two-steps:
+
+1. Assue a functional form. Example: linear form : 
+$$f(X) = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_p X_p$$ 
+Only need to estimate $p+1$ coefficients $\beta_0, \beta_1, \beta_2, \cdots, \beta_p$.
+2. Use a procedure to apply training data to *fit* the model such that
+$$Y \approx \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_p X_p$$ 
+Most common approach fitting linear models is *(ordinary) least squares*.  
+
+#### Non-parametric Methods
+Does not make assumptions about the functional form of $f$. More accurately follows the data, but requires a lot more data to become accurate.
+
+#### Trade-Off between Prediction Accuracy and Model Interpretability
+More flexible :: More accuracy. Easy interpretability :: Easy to infer.
+
+#### Regression vs. Classification Problems
+Quantitative :: Regression. Qualitative :: Classification.
+
+### Assessing Model Accuracy
+No free lunch in statistics: no one method dominates all others for all possible data sets.
+#### Measuring Quality of Fit
+Most common regression measure of fit is the *mean squared error* (MSE) given by 
+$$MSE = \frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{f}(x_i))^2$$
+Basically adding all the squared errors (so they add) then normalizing by the size of observations. We are interested in the MSE on observations outside the *training* dataset, the *test* dataset. The more flexible a model, or the more *degrees of freedom* it has, the better it can fit the training set. Linear regression has only two degrees of freedom, the most restrictive. But a more flexible model can overfit the training set and perform poorly with a test set.
+
+#### Bias-Variance Trade-Off
+It is possible to show that the expected test MSE, for a given value $x_0$, can always be decomposed into the sum of three fundamental quantities:
+1. The variance of $\hat{f}(x_0)$
+2. The squared bias of $\hat{f}(x_0)$
+3. The variance of the error $\epsilon$
+$$E(y_0 - \hat{f}(x_0))^2 = \text{Var}(\hat{f}(x_0)) + [\text{Bias}(\hat{f}(x_0))]^2 + \text{Var}(\epsilon)$$
+This means we need a model that simultaneously minimizes the *variance* and *bias* of $\hat{f}(x_0)$.  
+*Variance*: the amount $\hat{f}$ changes if a different training set is used. In general more flexible models have higher variance. 
+*Bias*: error from approximating a complicated model with a more restrictive one. More flexible models have less bias.
+
+#### The Classification Setting
+Use the training error rate
+$$\frac{1}{n} \sum_{i = 1}^n I(y_i \neq \hat{y}_i)$$
+Where $I(y_i \neq \hat{y}_i)$ is 0 when correct and 1 incorrect for each observation.
+*Bayes Classifier*: test erro rate is minimized, on average, by assigning each observation to the most likely class given its predictor values.
+$$\text{Pr}(Y = j | X = x_0)$$
+In a binary classifier, the following corresponds to *Class 1* $\text{Pr}(Y = 1 | X = x_0) > 0.5$, and *Class 2* otherwise.
+*K-Nearest Neighbors*: identifies the $K$ points nearest to $x_0$. The higher $K$, the higher bias, the lower $K$ the higher variance.
+
+### R Lab
+```{r Ch2 Lab}
+x <- c(1,6,2); y <- c(1,4,3)
+ls() # lists all variables in the environment
+rm(x, y) # remove variable
+
+x <- 1:10; y <- x
+f <- outer(x, y, function(x,y) cos(y) / (1 + x^2))
+contour(x,y,f)
+fa <- (f - t(f)) / 2
+contour(x,y,fa, nlevels = 45)
+image(x,y,fa)
+persp(x,y,fa)
+
+summary(Auto)
+
+?College
+summary(College)
+College %>%
+  ggplot(aes(Private, Outstate)) +
+  geom_boxplot()
+College <- College %>%
+  mutate(Elite = Top10perc > 50)
+ggplot(College, aes(Elite, Outstate)) + geom_boxplot()
+```
+

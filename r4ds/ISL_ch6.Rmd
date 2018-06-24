@@ -1,0 +1,415 @@
+---
+title: "ISL Ch6 Linear Model Selection and Regularization"
+author: "Andrew Washburn"
+date: "6/23/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+pg 203
+
+Let's examine other linear model fitting procedures besides least squares. Why? 
+
+- *Prediction Accuracy*: If *n* is not much larger than *p*, there's a lot of variability. And if $p>n$ then least squares is no longer viable because there is no longer a unique solution. By constraining or shrinking the estimated coefficients, the variance can be reduced at a negligible increase in bias.
+
+- *Model Interpretability*: removing variables irrelevant to the response.
+
+## Subset Selection
+
+To perform *best subset selection*, we fit a separate least squares regression for each possible combination of the *p* predictors.
+
+- Algorithm for best subset selection
+  1. Let $\mathcal{M}_0$ denote the *null model* containing no predictors. This model simply predicts the sample mean for each observation.
+  2. For $k = 1, 2, \ldots p$:
+    (a) Fit all $\binom{p}{k}$ models that contain exactly *k* predictors
+    (b) Pick the best among these $\binom{p}{k}$ models, and call it $\mathcal{M}_k$. Here *best* is defined as having the smallest RSS, or largest $R^2$.
+  3. Select a single best model from among $\mathcal{M}_0, \ldots, \mathcal{M}_p$ using cross-validated prediction error, $C_p$ (AIC), BIC, or adjusted $R^2$.
+
+Since subset selection scales $2^p$, it becomes computationally infeasible for $p > 20$.
+
+## Stepwise Selection
+
+### Forward Stepwise Selection
+
+While best subset selection considers all $2^p$ possible models, forward stepwise selection considers a much smaller set of models. It begins with the null model, then adds predictors until there are no more to add. At each step, the variable providing the greatest additional improvement to the fit is added to the model.
+
+- Algorithm for *Forward stepwise selection*
+  1. Let $\mathcal{M}_0$ denote the null model with no predictors.
+  2. For $k = 0, \ldots, p-1$:
+    (a) Consider all $p-k$ models that augment the predictors in $\mathcal{M}_k$ with one additional predictor.
+    (b) Choose the *best* among these $p-k$ models, and call it $\mathcal{M}_{k+1}$. Here *best* is defined having the smallest RSS or highest $R^2$.
+  3. Select a single best model from among $\mathcal{M}_0, \ldots, \mathcal{M}_p$ using cross-validated prediction error, $C_p$ (AIC), BIC, or adjusted $R^2$.
+  
+Whereas subset selection fits $2^p$ models, forward stepwise selection fits one null model, along with $p-k$ models in the $k$th iteration, for $k = 0, \ldots, p-1$. This amounts to $1 + \sum_{k = 0}^{p - 1} (p - k) = 1 + p(p + 1) / 2$. 
+
+### Backward Stepwise Selection
+
+Like forward, but starts with all *p* predictors then removes the least useful. 
+
+## Choosing the Optimal Model
+
+The model with the most predictors will always have the lowest RSS (fewer degrees of freedom), so we need another way to pick the *best* model. Therefore the training data RSS and $R^2$ is a poor predictor of the test error. To estimate the test error, we can indirectly assess it by making a bias adjustment resulting from overfitting, or directly assess it using a cross-validation approach.
+
+### $C_p$, AIC, BIC, and Adjusted $R^2$
+
+Least squares fits by minimizing the training RSS, and in general more predictors decrease the training RSS. Let's discuss methods for adjusting the training error.
+
+#### $C_p$
+
+$$ C_p = \frac{1}{n} (\text{RSS} + 2 d \hat\sigma^2) $$
+Where *d* is the number of predictors, and $\hat\sigma^2$ is an estimate of the variance of the error $\epsilon$ associated with each response measurement, typically using the full model. Clearly the number of predictors creates a penalty, adjusting for RSS decreasing. 
+
+#### Akaike information criterion (AIC)
+
+The AIC criterion is defined for a large class of models fit by maximum likelihood. In the case of least squares, it's the same form as $C_p$.
+
+#### Bayesian information criterion
+
+Similar form to $C_p$, but replaces $2d\hat\sigma^2$ with a $\log (n)d \hat\sigma^2$ term. Since $\log n > 2$ for any $n > 7$, the BIC statistic places heavier penalties on larger models. 
+
+#### Adjusted $R^2$
+
+Recall $R^2 = 1 - \text{RSS} / \text{TSS}$ where $\text{TSS} = \sum (y_i - \bar y_i)$ the *total sum of squares* (how much of the variance is accounted for by the model?). 
+
+$$ \text{Adjusted } R^2 = 1 - \frac{\text{RSS} / (n - d - 1)} {\text{TSS} / (n - 1)} $$
+We want the largest adjusted $R^2$ since the number of predictors in the model is inversely proportional to the fit measure. The intuition is that once all the correct predictors have been added to the model, any more will just add noise and minimally decrease RSS.
+
+### Validation and Cross-Validation
+
+Directly estimate the test error with held out data. Can be used on many types of models and does not require assumptions about the underlying data or estimating the error variance. 
+When in doubt be parsimonious! (Choose the simplest model)
+
+## 6.2 Shrinkage Methods
+
+Constraining or regularizing the coefficients towards zero. It will be shown this can significantly reduce variance.
+
+### Ridge Regression
+
+Recall ordinary least squares minimizes $\text{RSS} = (y - \mathbf{X} \beta)^2$. *Ridge regression* is very similar but adds a regularization term $\text{RSS} + \lambda \sum_{j = 1}^p \beta_j^2$. Where $\lambda \geq 0$ is a tuning parameter to be determined separately. Ideally, only the important coefficients will have values, and the unimportant ones are shrunk by $\lambda$. Because reularization penalizes the absolute size of predictors , it is best to standardize the parameters so they're all on the same scale. 
+Ridge regression's advantage over OLSq is rooted in the *bias-variance trade-off*. As $\lambda$ increases, the model flexibility decreases, increasing the bias but decreasing the variance. Since the test MSE is proportional to both the bias and variance, finding a minimum of the sum is the goal. Ridge regression performs best in situations where the least squares estimates have high variance. 
+### The Lasso
+
+Ridge regression will never totally remove a predictor (unless $\lambda = \infty$). The *lasso* has a very similar form to ridge regression $\text{RSS} + \lambda \sum_{j = 1}^p |\beta_j|$ (the $\ell_2$ norm has been replaced by the $\ell_1$ norm). The lasso can force some predictors to zero, yielding easier interpretability. 
+The lasso can remove variables because of the $\ell_1$ norm. The space it covers has corners on the axis (where at least one variable is zero), while the $\ell_2$ norm is a sphere which practically never exactly equals zero.
+Given a special case where $\mathbf{X}$ is the identity matrix, the solutions for ridge regression and lasso show the former shrinks all the coefficients proportionately, while the latter shrinks the coefficients by similar amounts and ones close to zero are set to zero.
+
+### Selecing the Tuning Parameter
+
+What is the best $\lambda$? Choose a grid of $\lambda$ values, and compute the cross-validation error for each value of $\lambda$. 
+
+## 6.3 Dimension Reduction Methods
+
+The variance controlling methods discussed so far use all the original predictors $X^T$. Now we explora approaches that transform the predictors then fit a least sqaures model on the transformed variables. 
+Let $Z_1, \ldots, Z_M$ represent $M < p$ linear combinations of the original $p$ predictors. That is $Z_m = \sum_{j = 1}^p \phi_{jm} X_j$ for some constants $\phi_{1m}, \phi_{2m}, \ldots, \phi_{pm}, m = 1, \ldots, M$. We can then fit the linear regression model
+$$ y_i = \theta_0 + \sum_{m = 1}^M \theta_m z_{im} + \epsilon_i, \quad i = 1, \ldots, n$$
+Note the regression coefficients are now $\theta_0, \theta_1, \ldots, \theta_M$. If the constants $\phi_{1m}, \phi_{2m}, \ldots, \phi_{pm}$ are chosen wiely, such dimension reduction can easily outperform least squares regression. Thus we've reduced the problem space from $p + 1$ to $M + 1$. Where $\beta_j = \sum_{m = 1}^M \theta_m \phi_{jm}$.
+All dimension reduction methods work in two steps. First, the transformed predictors $Z_1, \ldots, Z_M$ are obtained. Second, the model is fit using these $M$ predictors. However the selection of $Z$ (or equivilantly $\phi_{jm}$) can be achieved in different ways.
+
+### Principle Components Analysis and Regression
+
+PCA is a technique for reducing $\mathbf X_{n \times p}$. The first principle component direction of the data is that along which the observations vary the most. The book shows a line with the observations projected onto it. The principle component is where the resulting projected observations have the highest possible variance. This can be summarized mathematically by
+$$ Z_1 = \phi_{11} \times (X_1 - \bar X_1) + \phi_{21} \times (X_2 - \bar X_2)$$
+The principle component comes out of the linear combination of $X_1$ and $X_2$ such that $\phi_{11}^2 + \phi_{21}^2 = 1$ where the variance is the highest. The second principle component $Z_2$ is the linear combination of variables that is uncorrelated with $Z_1$, and has the highest variance s.t. this constraint. The zero correlation condition means an orthogonal condition between the principle components $Z_2 \perp Z_1$ (the dot product of $Z_1 \cdot Z_2 = 0$). 
+
+### Partial Least Squares
+
+PLS works like PCR, but identifies the new feature set $Z^T_M$ in a supervised way, using the response $Y$ to identify new features that approximate the old ones and are related to the response. PLS attempts to find directions that explain both the response and predictors. 
+After standardizing the predictors, PLC computes the first direction $Z_1$ by setting each $\phi_{j1}$ equal to the coefficient from the simple linear regression of $Y \sim X_j$. One can show this coefficient is proportional to the correlation between $y$ and $X_j$. Hence computing $Z_1 = \sum_{j=1}^p \phi_{j1} X_j$, PLS places the highest weight on the variables that are most stringly related to the response. 
+To identify the second PLS direction, we first adjust each of the variables for $Z_1$, by regressing each variables on $Z_1$ and taking the residuals. This can be interpreted as the remaining information unexplained by $Z_1$. 
+
+## Lab 1: Subset Selection Methods
+
+```{r Best Subset Selection}
+library(ISLR); library(leaps)
+Hitters <- na.omit(Hitters)
+
+# perform best subset selection
+regfit.full <- regsubsets(Salary ~ ., Hitters)
+summary(regfit.full) # asterisk means variable included in this model
+reg.summary <- summary(regfit.full)
+names(reg.summary)
+
+df <- tibble(
+  rsq = reg.summary$rsq,
+  adjr2 = reg.summary$adjr2,
+  cp = reg.summary$cp,
+  bic = reg.summary$bic,
+  x = seq_along(rsq)
+)
+df %>%
+  gather(stat, score, -x) %>%
+  ggplot(aes(x, score, color = stat)) +
+  geom_line() 
+plot(regfit.full ,scale ="r2")
+plot(regfit.full ,scale ="adjr2")
+plot(regfit.full ,scale ="Cp")
+plot(regfit.full ,scale ="bic")
+```
+
+```{r Forward/backward stepwise selection}
+regfit.fwd <- regsubsets(Salary ~ ., Hitters, method = "forward")
+regfit.bwd <- regsubsets(Salary ~ ., Hitters, method = "backward")
+plot(regfit.bwd ,scale ="r2")
+plot(regfit.bwd ,scale ="adjr2")
+plot(regfit.bwd ,scale ="Cp")
+plot(regfit.bwd ,scale ="bic")
+
+```
+```{r Validation Sets and CV}
+set.seed(1)
+train <- sample(c(TRUE, FALSE), nrow(Hitters), rep = T)
+test <- !train
+
+predict.regsubsets <- function(object, newdata, id, ...) {
+  form <- formula(object$call [[2]])
+  mat <- model.matrix(form, newdata)
+  coefi <- coef(object, id = id)
+  xvars <- names(coefi)
+  mat[, xvars] %*% coefi
+}
+
+regfit.best <- regsubsets(Salary ~ ., Hitters[train, ], nvmax = 19)
+test.mat <- model.matrix(Salary ~., Hitters[test, ])
+val.errors <- rep(NA, 19)
+for(ii in 1:19) {
+  coefii <- coef(regfit.best, id = ii)
+  pred <- test.mat[,names(coefii)] %*% coefii
+  val.errors[ii] <- mean((Hitters$Salary[test] - pred)^2)
+}
+which.min(val.errors)
+# best model has 10 variables
+coef(regfit.best, 10)
+
+# use cross-validation with 10 folds 
+k <- 10
+set.seed(1)
+folds <- sample(1:k, nrow(Hitters), replace = T)
+cv.error <- matrix(NA, k, 19, dimnames = list(NULL, paste(1:19)))
+
+for(jj in 1:k) {
+  best.fit <- regsubsets(Salary ~., Hitters[folds != jj, ], nvmax = 19)
+  for(ii in 1:19) {
+    pred <- predict(best.fit, Hitters[folds == jj,], id = ii)
+    cv.error[jj, ii] <- mean((Hitters$Salary[folds == jj] - pred)^2)
+  }
+}
+which.min(apply(cv.error, 2, mean))
+
+reg.best <- regsubsets(Salary ~., Hitters, nvmax = 19)
+coef(reg.best, 11)
+```
+
+## Lab 2: Ridge Regression and Lasso
+```{r}
+x <- model.matrix(Salary ~ ., Hitters)[,-1]
+y <- Hitters$Salary
+```
+
+```{r Ridge Regression}
+library(glmnet)
+grid <- 10^seq(10, -2, length = 100) # lambda ranges from 0.01 - 10 billion
+ridge.mod <- glmnet(x, y, alpha = 0, lambda = grid)
+# glmnet standardizes variables by default
+dim(coef(ridge.mod))
+# 100 vectors of regression coefficients for each lambda
+
+# predict a new set of coefficients for lambda = 50
+predict(ridge.mod, s = 50, type = "coefficients")[1:20,]
+
+# use validation set
+set.seed(1)
+train <- sample(1:nrow(x), nrow(x)/2)
+test <- -train
+y.test <- y[test]
+
+ridge.mod <- glmnet(x[train,], y[train], alpha = 0, lambda = grid, thresh = 1e-12)
+ridge.pred <- predict(ridge.mod, s = 4, newx = x[test,])
+mean((ridge.pred - y.test)^2) # test MSE with lambda = 4
+mean((mean(y[train]) - y.test)^2) # test MSE with no predictors
+
+ridge.pred <- predict(ridge.mod, s = 1e10, newx = x[test,])
+mean((ridge.pred - y.test)^2) # test MSE with giant lambda. same as null model
+
+ridge.pred <- predict(ridge.mod, s = 0, newx = x[test,])
+mean((ridge.pred - y.test)^2) # ordinary least squares has higher test MSE
+
+# run 10-fold CV to find the best lambda
+set.seed(1)
+cv.out <- cv.glmnet(x[train,], y[train], alpha = 0)
+plot(cv.out)
+(bestlam <- cv.out$lambda.min)
+
+ridge.pred <- predict(ridge.mod, s = bestlam, newx = x[test,])
+mean((ridge.pred - y.test)^2) # lowest possible test MSE
+
+# now refit the model with all the observations and examine the coefficients
+out <- glmnet(x, y, alpha = 0)
+predict(out, type = "coefficients", s = bestlam)[1:20,]
+```
+
+```{r Lasso}
+lasso.mod <- glmnet(x[train,], y[train], alpha = 1, lambda = grid)
+plot(lasso.mod)
+
+set.seed(1)
+cv.out <- cv.glmnet(x[train,], y[train], alpha = 1)
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+lasso.pred <- predict(lasso.mod, s = bestlam, newx = x[test,])
+mean((lasso.pred - y.test)^2) # similar test MSE as ridge regression
+
+out <- glmnet(x, y, alpha = 1, lambda = grid)
+(lasso.coef <- predict(out, type = "coefficients", s = bestlam)[1:20,])
+# 12 of 19 predictors are noise
+```
+
+## Lab 3: PCR and PLS Regression
+
+```{r PCR}
+library(pls)
+set.seed(2)
+pcr.fit <- pcr(Salary ~., data = Hitters, scale = T, validation = "CV")
+summary(pcr.fit) # show CV sqrt(MSE) values for each set of principle components
+validationplot(pcr.fit, val.type = "MSEP")
+
+# check fit on test data
+set.seed(1)
+pcr.fit <- pcr(Salary ~ ., data = Hitters, 
+               subset = train, 
+               scale = T,
+               validation = "CV")
+validationplot(pcr.fit, val.type = "MSEP")
+pcr.pred <- predict(pcr.fit, x[test,], ncomp = 7)
+mean((pcr.pred - y.test)^2)
+
+pcr.fit <- pcr(y ~ x, scale = T, ncomp = 7)
+summary(pcr.fit)
+```
+```{r PLS}
+set.seed(1)
+pls.fit <- plsr(Salary ~ ., data = Hitters, subset = train, scale = T, validation = "CV")
+summary(pls.fit)
+pls.pred <- predict(pls.fit, x[test,], ncomp = 2)
+mean((pls.pred - y.test)^2)
+
+pls.fit <- plsr(Salary ~ ., data = Hitters, scale = T, ncomp = 2)
+summary(pls.fit) 
+# two pls components explain as much variance as 7 pcr components, 
+# because pls explains directions that explain variance in both predictors and response
+```
+
+## 6.8 Exercises
+
+1. 
+  (a) Best subset selection has lowest training MSE
+  (b) Unknown. Have to compare forward and backward selection.
+  (c) False, False, True, True, False
+
+2.
+  (a) Lasso reduces variance at a cost of increased bias
+  (b) Ridge regression reduces variance at a cost of increased bias
+  (c) Non-linear methods decrease bias at a cost of increased variance
+
+3. Regarding the lasso as $s$ increases from 0: pg260. Ref pg 224
+  (a) the training RSS steadily decreases
+  (b) but the test RSS decreases then increases in a U shape
+  (c) The variance steadily increases
+  (d) and the bias steadily decreases
+  (e) The irreducible error remains constant regardless of the model parameters
+
+4. Regarding ridge regression, as $\lambda$ increases from 0:
+  (a) the training RSS steadily decreases
+  (b) the test RSS initially increases then decreases in an inverted U shape
+  (c) the varaiance steadily decreases
+  (d) the bias steadily increases
+  (e) the irreducible error remains constant
+  
+5. 
+$$ \begin{eqnarray}
+\text{min}& \quad ( y_1 - \beta_1 x_{11} - \beta_2 x_{12})^2 + ( y_2 - \beta_1 x_{21} - \beta_2 x_{22})^2 + \lambda(\beta_1^2 + \beta_2^2) \\
+
+\text{min}& \quad ( y_1 - x_1(\beta_1 - \beta_2))^2 + ( y_2 - x_2(\beta_1 - \beta_2))^2 + \lambda(\beta_1^2 + \beta_2^2) \\
+
+\text{min}& \quad y_1^2 - 2y_1 x_1(\beta_1 - \beta_2) + x_1^2(\beta_1 - \beta_2)^2 + y_2^2 - 2y_2 x_2(\beta_1 - \beta_2) + x_2^2(\beta_1 - \beta_2)^2 + \lambda(\beta_1^2 + \beta_2^2) \\
+\end{eqnarray} $$
+
+8.
+```{r 8}
+plotFit <- function(mod) {
+  plot(mod ,scale ="r2")
+  plot(mod ,scale ="adjr2")
+  plot(mod ,scale ="Cp")
+  plot(mod ,scale ="bic")
+}
+
+x <- rnorm(100)
+err <- runif(100)
+beta <- c(5, 19, -4.5, pi)
+y <- beta[1] + beta[2]*x + beta[3] + x^2 + beta[4]*x^3 + err
+df <- tibble(x = x, y = y)
+regfit.full <- regsubsets(y ~ poly(x, degree = 10), data = df)
+regfit.fwd <- regsubsets(y ~ poly(x, degree = 10), data = df, method = "forward")
+regfit.bwd <- regsubsets(y ~ poly(x, degree = 10), data = df, method = "backward")
+
+plotFit(regfit.bwd)
+coef(regfit.full, id = 3)
+coef(regfit.fwd, id = 3)
+coef(regfit.bwd, id = 3)
+
+grid <- seq(1e-5, 100, length.out = 100)
+cv.lasso <- cv.glmnet(poly(x, degree = 10), y, lambda = grid, alpha = 1)
+plot(cv.lasso)
+(bestlam <- cv.lasso$lambda.min)
+predict(cv.lasso, type = "coefficients", s = bestlam)
+```
+
+9.
+```{r 9}
+set.seed(1)
+MSE <- vector("numeric", 5)
+train <- sample(c(TRUE,TRUE,FALSE), nrow(College), replace = T)
+x.train <- model.matrix(Apps ~ ., College)[train, -1]
+x.test <-  model.matrix(Apps ~ ., College)[!train, -1]  
+y.train <- College$Apps[train]
+y.test <- College$Apps[!train]
+# linear model
+lm.fit <- glm(Apps ~ ., data = College, subset = train)
+lm.pred <- predict(lm.fit, newdata = College[!train,])
+MSE[1] <- mean((y.test - lm.pred)^2)
+
+# ridge regression
+ridge.fit <- cv.glmnet(x.train, y.train, alpha = 0)
+ridge.pred <- predict(ridge.fit, newx = x.test, s = ridge.fit$lambda.min)
+MSE[2] <- mean((y.test - ridge.pred)^2)
+
+# lasso
+lasso.fit <- cv.glmnet(x.train, y.train, alpha = 1)
+lasso.pred <- predict(lasso.fit, newx = x.test, s = lasso.fit$lambda.min)
+MSE[3] <- mean((y.test - lasso.pred)^2)
+
+# PCR
+pcr.fit <- pcr(Apps ~ ., data = College, 
+               subset = train, 
+               scale = T,
+               validation = "CV")
+summary(pcr.fit) # 4 pcr components explain 88% of variance, adjCV 1243
+pcr.pred <- predict(pcr.fit, x.test, ncomp = 4)
+MSE[4] <- mean((y.test - pcr.pred)^2)
+
+# PLS
+pls.fit <- plsr(Apps ~ ., data = College, 
+                subset = train, scale = T, validation = "CV")
+summary(pls.fit) # 4 pls components explain 91% variance, adjCV 1124
+pls.pred <- predict(pls.fit, x.test, ncomp = 4)
+MSE[5] <- mean((pls.pred - y.test)^2)
+
+plot(MSE)
+# the ordinary linear model performs best, followed by lasso. PCR and PLS not so good
+```
+10.
+
+

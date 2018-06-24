@@ -1,0 +1,9 @@
+---
+title: "Introduction to statistical learning Ch 1 and 2"
+author: "Andrew Washburn"
+date: "4/28/2018"
+header-includes:
+  - \usepackage{cancel}
+output: html_notebook
+---
+

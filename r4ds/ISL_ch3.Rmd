@@ -1,0 +1,396 @@
+---
+title: "ISL Ch3 Linear Regression"
+author: "Andrew Washburn"
+date: "6/23/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# 3. Linear Regression
+##Simple Linear Regression
+$$Y \approx \beta_0 + \beta_1X$$
+Simple as it gets. Use the training data $X \in \Bbb R^n$ to produce estimates for $\hat{\beta_0}$ and $\hat{\beta_1}$ then create predictions $\hat{y}$.
+###Estimating Coefficients
+Measure closeness of fit. *Least sqaures* is the most common method.
+```{r}
+library(broom)
+y <-rnorm(10)
+x <-1:10
+mod <- lm(y ~ x)
+df <- augment(mod)
+ggplot(df, aes(x = x, y = y)) + 
+  geom_point() +
+  geom_point(aes(y = .fitted), shape = 1) +
+  geom_segment(aes(xend = x, yend = .fitted), color = "red")
+```
+Let $\hat{y}_i = \hat{\beta_0} + \hat{\beta_1}x_i$ be the prediction for $Y$ based on the $i$th value of $X$. Then the residual (error) is $e_i = y_i - \hat{y_i}$. The *residual sum of squares* defines as
+$$RSS = \sum_{i=1}^n e_i^2 = \sum_{i=1}^n (y_i - \hat{\beta_0} + \hat{\beta_1}x_i)^2$$
+Using some calculus (set the derivative to zero) we calculate the minimized coefficients as
+$$\begin{eqnarray} \hat{\beta_1} &=& \frac{\sum_{i=1}^n (x_i - \bar{x}) (y_i - \bar{y})}{\sum_{i=1}^n (x_i - \bar{x})} \\ \hat{\beta_1} &=& \bar{y} - \hat{\beta_1}\bar{x} \end{eqnarray}$$
+where $\bar{y} \equiv \frac{1}{n} \sum_{i=1}^n y_i$ and  $\bar{x} \equiv \frac{1}{n} \sum_{i=1}^n x_i$, the means of $Y$ and $X$ respectively.
+
+### Assessing Coefficient Estimate Accuracy
+
+In the same way we estimate the population mean with the sample mean $\mu \approx \bar{y} = \frac{1}{n} \sum_{i=1}^n y_i$, the least squares coefficients estimate the population regression line.
+This analogy is based on the concept of *bias*. If the sample mean $\hat\mu$ is used to estimate the population mean $\mu$, the estimate is *unbiased*, in that on average $\hat\mu \approx \mu$. Given a huge set of observations $Y \in \Bbb R^n$ where $n >>> 1$, there is no systematice over or under estimate of the true parameter, thus $\hat\mu = \mu$.
+So how accurate is a single $\hat\mu$ to $\mu$? Compute the standard error defined as
+$$\text{Var}(\hat\mu) = \text{SE}(\hat\mu)^2 = \frac{\sigma^2}{n}$$
+where $\sigma$ is the standard deviation of each of the realizations $y_i$ of $Y$. The formulas for computing the least squares coefficient errors are the following
+$$ \begin{eqnarray}
+\text{SE}(\hat\beta_0)^2 &=& \sigma^2 \left \lbrack \frac{1}{n} + \frac{\bar x^2}{\sum_{i=1}^2 (x_i - \bar x)^2} \right \rbrack\\
+\text{SE}(\hat\beta_1)^2 &=& \frac{\sigma^2}{\sum_{i=1}^2 (x_i - \bar x)^2} \\
+\sigma^2 &=& \text{Var}(\epsilon) \\
+\sigma = \text{RSE} &=& \sqrt{\text{RSS} / (n - 2)}
+\end{eqnarray} $$
+This assumes the residual variance is uncorrelated, doesn't change with respect to any variable. The residual standard error (RSE) is computed from the dataset, because $\sigma$ is generally unknown. Then a confidence interval may be computed. A 95% confidence interval means there is approximately a 95% chance the interval $\hat\beta_1  \pm 2 \cdot \text{SE}(\hat\beta_1)$ contains the true value of $\beta_1$.
+Standard errors can alos be used for hypothesis testing. The *null hypothesis* $H_0$ versus the *alternative hypothesis* $H_a$:
+$$ \begin{eqnarray}
+H_0 : \text{There is no relationship between } X \text{ and } Y \Rightarrow \beta_1 &=& 0\\
+H_a : \text{There is some relationship between } X \text{ and } Y \Rightarrow \beta_1 &\neq& 0
+\end{eqnarray} $$
+So we need to test if $\hat\beta_1$, our estimate for $\beta_1$, is sufficiently far away enough from zero to be non-zero. How far is far enough? Use the *t-statistic*! This measures the number of standard deviations $\hat\beta_1$ is away from $0$.
+$$t = \frac{\hat\beta_1 - 0}{\text{SE} (\hat\beta_1)}$$
+If there is no relationship between $X$ and $Y$, then the expected *t*-distribution has $n-2$ degrees of freedom. We check the probability of $|t|$ if $\beta_1=0$ using a *p-value*. Small p-values indicate it is unlikely to observe such a substantial association solely because of chance. Small p-values allow us to *reject the null-hypothesis* and declare there is some relationship between $X$ and $Y$. Typical cutoff p-values are 5 or 1%.
+
+### Assessing Model Accuracy
+
+#### Residual Standard Error (RSE)
+
+Even if we knew the true regression line, we could not perfectly predict $Y$ from $X$ because of errors $\epsilon$. The RSE is an estimate of SE($\epsilon$), roughly speaking the average amount the response will deviate from the true regression line.
+$$ \text{RSE} = \sqrt{\frac{1}{n-2} \text{RSS}} = \sqrt{\frac{1}{n-2} \sum_{i=1}^n (y_i - \hat y_i)^2} $$
+Again, RSS is the residual sum of squares. In general, RSE measures the *lack of fit* of the model to the data. 
+
+#### R^2 Statistic
+
+Similar to the RSE, but the $R^2$ statistic measures proportion so the value is always between 0 and 1, and independent of the scale of $Y$.
+$$ R^2 = \frac{\text{TSS} - \text{RSS}}{\text{TSS}} = 1 - \frac{\text{RSS}}{\text{TSS}} = 1 - \frac{\sum_{i=1}^n (y_i - \hat y_i)^2}{\sum_{i=1}^n (y_i - \bar y)^2} $$
+TSS measures the total variance in the response $Y$.In contrast, RSS measures the amount of unexplained variability after regression. Hence, TSS - RSS measures the amount of explainable response variability. If the model well explains the response variability, RSS << 1 and $R^2 \approx 1$. Thus $R^2$ measures how well $X$ explains the variability in $Y$.
+
+## 3.2 Multiple Linear Regression
+
+Adding the effects of multiple predictors. We'll add the $\mathbf 1$ vector in this equation, but omit it later for ease of notation.
+$$Y_n = \begin{bmatrix}\mathbf 1 & X \end{bmatrix}_{n \times p+1} \cdot\beta_{p+1}$$
+### Estimating Regression Coefficients
+Since $\beta$ is unknown, we estimate it using the same least squares method.
+$$ \begin{eqnarray}
+\hat Y &=& X \cdot \hat\beta \\
+\text{RSS} &=& (Y - \hat Y)^T (Y - \hat Y)
+\end{eqnarray} $$
+Estimating multiple regression can have different outcomes than single regression. The slope coefficients are the change in the response to that one variable while holding all the others *constant*. We can test this by correlating the predictors together. Strong correlations mean one variable is strongly dependent upon another, and it's effect on the response it superfluous.  
+This counter-intuitive idea can be displayed by stating high ice cream sales cause more shark attacks. While no one has banned ice cream sales to reduce shark attacks, a more realistic explanation is higher temperatures draw more people to the beach where they buy ice cream and succomb to shark attacks.
+
+### Important Questions
+1. Is at least one of the predictors useful in predicting the response?
+Test the following hypothesis using the *F-statistic*:
+$$ \begin{eqnarray}
+H_0 &:& \beta = 0 \\
+H_a &:& \text{ at least one } \beta_j \neq 0 \\ \\
+F &=& \frac{(TSS - RSS) / p}{RSS / (n - p - 1)}
+\end{eqnarray} $$
+It can be shown that the denominator evalutates to $\sigma^2$ and, if $H__0$ is true, the numerator is also $\sigma^2$, thus if there is no relationship between the response and the predictors we expect the F-statistic to evaluate close to 1. If $H_a$ is true, then the numerator is $> \sigma^2$ and $F > 1$.
+
+2. Do all of the predictors help explain $Y$, or is only a subset useful?
+
+The F-statistic and it's associated p-value explains if at least one of the predictors is useful. Then which one's are useless? Variable selection pares down the total column space to a set of independent vectors. There are a total of $2^p$ models that contain subsets of $p$ variables, so brute-force is infeasible. Use a more automated and efficient approach with three classical methods:
+
+  +*Forward Selection*: begin with the *null model* -- contains only an intercept and no predictors-- then fit $p$ simple linear regressions and add to the null model the variable that results in the lowest RSS. Continue adding predictors until some stopping rule is satisfied.
+
+  +*Backward Selection*: begin with all the model variables, and remove the variable with the largest p-value (the least statistically significant). Continue removing predictors until a stopping rule is reached.
+
+  +*Mixed Selection*: begin with the *null model* and add predictors until one of the variable's p-values rises above a certain threshold, then remove that one. Continue adding and removing predictors until all the model variables are significant and all possible variables to add would have large p-values.
+
+3. How well does the model fit the data?
+
+$R^2$: the proportion of variance explained, or the correlation of the response and the variable. In multiple linear regression this equals $\text{Cor}(Y,\hat Y)^2$. Adding more variables always increases the $R^2$ score, even if the predictor is weakly associated with the response. More predictors allows more degrees of freedom to fit the training data (but not the test data). However, RSE increases slightly when weak predictors add to the model. This is because the RSE is inversely proportional to its degrees of freedom
+$$\text{RSE} = \sqrt{\frac{1}{n-p-1} \text{RSS}} $$
+
+4. Given a set of predictor values, what response value is predicted and how accurate is the prediction?
+
+Three sorts of fitted model prediction uncertainty:
+
+  + The *least squares plane* $\hat Y = X\hat\beta$ is only an approximation of the *true population regression plane $f(X) = X\beta$. This is because of the reducible error in how close $\hat Y \approx f(X)$ bounded by a confidence interval.
+  + The real regression function is probably more complicated than a linear model, introducing another irreducible error called *model bias*.
+  + Irreducible error $\epsilon$ caused by noise (unknown predictors). Prediction intervals are wider than confidence intervals because they incorporate both the reducible and irreducible error.
+  
+## More to think about Regression Models
+
+### Qualitative Predictors
+
+#### Two Level Predictors
+
+Suppose a predictor has two qualitative (factor) levels: `male` and `female`. Incorporating them into a regression model is simple: create a *dummy variable* that takes on two numerical values
+
+$$x_i = \begin{cases} 
+1 \quad &\text{if the } i \text{th person is female} \\
+0 \quad &\text{if the } i \text{th person is male}
+\end{cases} $$
+$$y_i = \beta_0 + \beta_1 x_i + \epsilon = 
+\begin{cases} 
+\beta_0 + \beta_1 x_i + \epsilon \quad &\text{if the } i \text{th person is female} \\
+\beta_0 + \epsilon \quad &\text{if the } i \text{th person is male}
+\end{cases} $$
+So $\beta_0$ is the average predicted response for `male` and $\beta_0 + \beta_1$ is the average predicted response for `female`. But remember the p-value! High p-value means the predictor is not statistically significant. The coefficient ordering is arbitrary, only the numerical interpretation matters.
+
+#### Multiple Factor Level Predictors
+
+An example is `ethnicity` where the levels are *Asian, Caucasion,* and *African American*. The model just adds another dummy variable
+$$y_i = \beta_0 + \beta_1 x_i + \beta_2 x_i + \epsilon = 
+\begin{cases} 
+\beta_0 + \beta_1 x_i + \beta_2 x_i + \epsilon \quad &\text{if the } i \text{th person is Asian} \\
+\beta_0 + \beta_1 x_i + \epsilon \quad &\text{if the } i \text{th person is Caucasion} \\
+\beta_0 + \epsilon \quad &\text{if the } i \text{th person is African American}
+\end{cases} $$
+These new coefficients act as average values for the new factor levels in reference to the baseline (in this case *African Americans*). 
+
+### Extensions of the Linear Model
+
+Two of the most important assumptions are that the relationship between predictors and response is *additive* and *linear*.
+
+#### Removing the Additive Assumption
+
+- The effect of changes in a predictor $X_j$ on the response $Y$ is independent of the values of the other predictors. There's no *interaction term*.
+For example, spending $100,000 on TV and Radio advertising may be more effective than solely TV or Radio advertising.
+$$ 
+Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \beta_3 X_1 X_2 + \epsilon
+$$
+$\beta_3$ can be interpreted as the increase in effectiveness of $X_1$ for a given increase in $X_2$. A rule of thumb is, if we add an interaction term, we should include the main effects even is they're insignificant. 
+Fitting qualitative data is just as easy and has an intuitive interpretation. The qualitative coefficient changes the slope and intercept of a another predictor.
+
+#### Non-Linear Relationships
+
+A simple way to extend linear into nonlinear regression is with *polynomial regression*. We can add second, third, fourth, as many degrees polynomials as we want and it's still linear regression!
+$$ Y = \beta_0 + \beta_1 X_1 + \beta_2 (X_1)^2 + \epsilon $$
+
+### Potential Problems
+
+#### 1. Data is Non-linear
+
+Linear regression assumes a straight line (or plane) relationship between the predictors and response, but non-linearity is the rule not the exception. *Residual plots* are useful visualizations for identifying non-linearity. We plot the residuals $e_i = y_i - \hat y_i$ versus the fitted response values $\hat y_i$. Ideally the plot will show no discernible pattern indicating non-linear effects.
+
+#### 2. Error Term Correlation
+
+Given the error terms $e_1, e_2, ... , e_n$, they are uncorrelated if the value of $e_i$ gives no information about $e_{i+1}$. If they are correlated, then the estimated standard errors will tend to underestimate the true standard errors. Meaning, actual confidence intervals are narrower than predicted and p-values are smaller than they should be, leading to erroneous conclusions. 
+
+#### 3. Error-Term Variance Variability
+
+*Homoscedasticity*: An important assumption of linear models is the error terms have constant variance $\text{Var}(\epsilon_i) = \sigma^2$. The standard errors, confidence intervals, and hypothesis tests rely on this assumption. A residual plot with a funnel shape indicates *heterscedasticity*.
+
+#### 4. Outliers
+
+*Outlier*: a point $y_i$ that is far away from its predicted value $\hat y_i$. Outliers increase the standard error, throwing off the associated statistics. A useful idea is *standardizing the residuals* normalizing by the estimated standard deviation. Observations outside $3\sigma$ would be considered outliers. 
+
+#### 5. High-Leverage Points
+
+Outliers are unsual $y_i$ values given a predictor $x_i$. *High-leverage* observations have an unusual $x_i$ value. These can tweak the regression coefficients. The leverage statistic $h_i$ computes the weighted distance of the $x_i$ with an average value equal to $(p+1)/n$. 
+
+#### 6. Collinearity
+
+*Collinear*: two variables are correlated with each other. One can predict the other (dependent). The predictor variance increases, and the power of the t-statistic for each predictor decreases. The *variance inflation factor* measures collinearity.
+
+## Ch3 Linear Regression Lab
+
+```{r Linear Regression Lab}
+library(MASS); library(ISLR)
+# medv: median value of Boston homes. lstat: percent of households with low socioeconomic status
+lm.fit <- lm(medv ~ lstat, data = Boston) # fit a linear model to the data
+summary(lm.fit) # linear model information
+confint(lm.fit) # coefficient confidence intervals
+# now use the model to predict on unseen values of lstat (x)
+# Confidence and prediction intervals are centered on the same point, 
+# but prediction intervals include irreducible error as well as model error.
+predict(lm.fit, tibble(lstat = c(5,10,15)),
+        interval = "confidence") 
+predict(lm.fit, tibble(lstat = c(5,10,15)),
+        interval = "prediction") 
+ggplot(Boston, aes(lstat, medv)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+plot(lm.fit)
+
+# Multiple Linear Regression
+lm.fit <- lm(medv ~ lstat + age, data = Boston)
+summary(lm.fit)
+# short hand for all the predictors (.)
+lm.fit <- lm(medv ~ ., data = Boston)
+summary(lm.fit)
+
+# exclude a predictor
+lm.fit1 <- lm(medv ~ . -age, data = Boston)
+lm.fit1 <- update(lm.fit, ~. -age)
+summary(lm.fit1)
+
+# Interaction Terms
+# lstat:black means interaction term
+# lstat*black is shorthand for lstat + black + lstat:black
+summary(lm(medv ~ lstat*age, data = Boston))
+
+# Non-linear predictor transformations
+lm.fit2 <- lm(medv ~ lstat + I(lstat^2), data = Boston)
+summary(lm.fit2)
+lm.fit <- lm(medv ~ lstat, data = Boston)
+# anova performs a hypothesis test comparing the two models. 
+# H_0: both models fit the data equally well
+# H_a: the full model is superior
+anova(lm.fit, lm.fit2)
+plot(lm.fit2)
+lm.fit5 <- lm(medv ~ poly(lstat, 5), data = Boston)
+summary(lm.fit5)
+summary(lm(medv ~ log(rm), data = Boston))
+
+# Qualitative predictors
+str(Carseats)
+lm.fit <- lm(Sales ~ . +Income:Advertising + Price:Age, data = Carseats)
+summary(lm.fit)
+contrasts(Carseats$ShelveLoc) # shows the ordering of dummy variables
+```
+## Linear Regression Exercises pg. 120
+1. Explain the conclusions stated by Table 3.4 pg. 74
+Coefficient, Std. error, t-statistic, p-value
+Std.error quantifies how close the coefficient is to the true population parameter. It's the average amount the $\hat\beta$ differs from $\beta$. The further $x_i$ are spread out, the smaller the standard error because they provide more leverage. Larger standard errors cause larger confidence intervals. If the confidence interval is statistically different (using the t-statistic to compute a p-value) from the null hypothesis $H_0: \beta = 0$, then we can reject it.
+Table 3.4 states that advertising on `TV` and `radio` have a significant effect on `Sales` while `newspaper` advertising does not have a significant effect (p-value = 0.8599).
+
+2. What's the difference between KNN classifier and KNN regression methods?
+KNN regression averages the $y_i$ values for the closest $k$ $x_i$ points. KNN classifier picks a point $x_0$ and classifies it based on the closest $k$ $x_i$ points.
+
+3. Answer the following about predictors and responses.
+a. 
+- The female (1) male (0) coefficient is 35, meaning on average, females earn $35k more than males all else equal.
+- See previous answer
+- The interaction term is -10, meaning for each point increase in GPA, females earn $10k less on average.
+- See previous answer
+b. $\text{Female salary} = 50 + 20 (4.0) + 0.07 (110) + 35 + 0.01 (4.0 \times 110) - 10 (4.0) = 137.1$
+c. We don't know the standard error of the interaction between GPA and IQ, so we can't state whether it's insignificant or not.
+
+4. 
+a. a higher order linear model will always have a lower RSS because it has fewer degrees of freedom in the training set.
+b. However, high order linear models have higher variance which may perform poorly on a test set because of overfitting.
+c. Given a non-linear response, a lower order linear model will have high bias and a lower RSS for the training set than a higher order linear model.
+d. A high order linear model will perform better on a non-linear test set than a simple linear model.
+
+5. Not sure what this $i'$ number is... Basically this is an algebra problem.
+
+6. use Eq 3.4 to prove a linear model always passes through $\bar x, \bar y$. Since the intercept is dependent on $\bar x$ and $\bar y$,, and $\beta_1$ is a straight line, it will always go through the average. 
+$$ \begin{eqnarray}
+\text{Example: }\bar x, \bar y = 0 \\
+\beta_0 = \bar y - \beta_1 \bar x = 0
+\end{eqnarray} $$
+
+7. Prove eq 3.18 $\text R^2 = \text{Cor}(X,Y)^2$ given $\bar x = \bar y = 0$.
+
+8. 
+```{r}
+lm.fit <- lm(mpg ~ horsepower, data = Auto)
+summary(lm.fit)
+print("predict mpg for horsepower = 98")
+print("confidence interval")
+predict(lm.fit, tibble(horsepower = 98), interval = "confidence")
+print("prediction interval")
+predict(lm.fit, tibble(horsepower = 98), interval = "prediction")
+```
+Strong negative relationship between horsepower and mpg.
+
+9.
+```{r echo=F}
+library(GGally); library(dplyr)
+Auto1 <- Auto %>%
+  dplyr::select(-name)
+ggpairs(Auto1)
+lm.fit <- lm(mpg ~ ., data = Auto1)
+summary(lm.fit)
+plot(lm.fit)
+```
+
+10.
+```{r}
+library(ISLR)
+lm.fit <- lm(Sales ~ Price + Urban + US, data = Carseats)
+summary(lm.fit) # Urban not significant
+lm.fit1 <- lm(Sales ~ Price + US, data = Carseats)
+summary(lm.fit1)
+anova(lm.fit, lm.fit1) # basically the models are the same
+plot(lm.fit1)
+```
+
+11. 
+```{r}
+set.seed(1)
+x <- rnorm(100)
+y <- 2 * x + rnorm(100)
+ggplot() + geom_point(aes(x, y))
+ggplot() + geom_point(aes(y, x))
+
+lm.fit <- lm(y ~ x + 0)
+summary(lm.fit)
+lm.fit1 <- lm(x ~ y + 0)
+summary(lm.fit1)
+```
+
+12. Reference eq 3.38 pg. 121
+```{r}
+x <- rnorm(100)
+y <- rnorm(100)
+
+ggplot() + geom_point(aes(x, y))
+ggplot() + geom_point(aes(y, x))
+
+lm.fit <- lm(y ~ x + 0)
+summary(lm.fit)
+lm.fit1 <- lm(x ~ y + 0)
+summary(lm.fit1)
+
+```
+
+13. 
+```{r}
+set.seed(1)
+x <- rnorm(100)
+eps <- rnorm(100, sd = 0.25)
+y <- -1 + 0.5 * x + eps
+ggplot() + 
+  geom_point(aes(x, y)) +
+  geom_smooth(method = "lm", se = F, aes(x = x, y = y, color = "lsq")) +
+  geom_abline(aes(slope = 0.5, intercept = -1, color = "pop")) +
+  labs(color = "Regression Lines")
+?geom_abline
+summary(lm(y ~ x))
+summary(lm(y ~ x + I(x^2)))
+
+```
+
+14. Collinearity
+```{r}
+set.seed (1)
+x1=runif (100)
+x2 =0.5* x1+rnorm (100) /10
+y=2+2* x1 +0.3* x2+rnorm (100)
+
+cor(x1, x2)
+ggplot() + geom_point(aes(x1, x2))
+
+summary(lm(y ~ x1 + x2))
+summary(lm(y ~ x1))
+summary(lm(y ~ x2))
+
+x1 <- c(x1, 0.1)
+x2 <- c(x2, 0.8)
+y <- c(y, 6)
+
+summary(lm(y ~ x1 + x2))
+summary(lm(y ~ x1))
+summary(lm(y ~ x2))
+
+```
+
+15.
+```{r cache=T}
+library(MASS);library(GGally)
+
+ggpairs(Boston)
+
+lm.fit <- lm(medv ~ ., data = Boston)
+summary(lm.fit)
+```

@@ -1,0 +1,21 @@
+---
+title: "ISLR_Notes_2"
+author: "Andrew Washburn"
+date: "1 June, 2018"
+output: html_notebook
+---
+
+# Ch8: Tree-Based Methods
+
+Trees stratify or segment the predictor space into a number of simple regions. Predictions on observations are made by the mean of the observations.
+
+## 8.1 Decision Tree Basics
+
+### Regression Trees
+
+```{r}
+library(rpart)
+tree <- rpart(Salary ~ Years + Hits, data = Hitters)
+tree
+```
+The observation space is segmented into regions called terminal nodes or leaves of the tree. The points

@@ -1,0 +1,252 @@
+---
+title: "ISL Ch5 Resampling Methods"
+author: "Andrew Washburn"
+date: "6/23/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ISLR)
+library(tidyverse)
+library(MASS)
+```
+
+
+Repeatedly drawing samples from the training set and fitting many models to gain a better understanding.
+
+## 5.1 Cross-Validation
+
+Holding out a subset of training observations to be used for testing models.
+
+### The Validation Set Approach
+
+Randomly divide the observations into a training and a validation set. The validation set's MSE provides an estimate of the test error rate. Each sample provides a different MSE, introducing variability in the test error rate and probably overestimates it as well.
+
+### Leave-One-Out Cross Validation
+
+Given a set of $n$ observations, subset a single observation and train the rest. Since $(x_1,y_1)$ is not used in the fitting process, $\text{MSE}_1 = (y_1 - \hat y_1)^2$ provides an approximately unbiased estimate for the test error. Now repeat the procdure for all $n$ observations, we computes the cross validation MSE as $\text{CV}_{(n)} = \frac{1}{n} \sum_{i=1}^n \text{MSE}_i$. Fitting $n$ models can be expensive, especially if each model is slow to fit. With least squares linear or polynomial regression, math comes to the rescue! The cost of LOOCV is the same of a single model fit:
+$$ \text{CV}_{(n)} = \frac{1}{n} \sum_{i=1}^n \left( \frac{y_i - \hat y_i}{1 - h_i} \right)^2 $$
+Where $h_i$ is the leverage statistic. This is like ordinary MSE, but each residual is divided by $1 - h_i$. The leverage lies between $1/n$ and 1, and reflects the amount that an observation influences its own fit. 
+LOOCV is a very general method, but the magic formula only applies to least squares. In the other cases, the model has to be refit $n$ times.
+
+### k-Fold Cross-Validation
+
+Like LOOCV, but the observations are divided into $k$ groups, or *folds*, of approximately equal size. This process provides $k$ estimates of the test error, and the $k$-fold CV estimate is the average of all these values $\text{CV}_{(k)} = \frac{1}{k} \sum_{i=1}^k \text{MSE}_i$. Typical values of $k$ are 5 and 10. 
+
+### Bias-Variance Trade-Off for k-Fold Cross-Validation
+
+Aside from computational advantages, *k*-fold CV provides more accurate estimates than LOOCV because of the bias-variance trade-off. The validation set approach overestimates the test error because of high bias, while *k*-fold reduces the bias, and LOOCV has the ultimate low bias. But LOOCV averages the outputs of *n* fitted models, each of which have very similar observations: therefore these are positively correlated with each other. Since *k*-fold CV has smaller overlap, it has lower variance than LOOCV.
+
+### CV on Classification Problems
+
+Same idea, but the MSE if just average number of Errors $y_i \neq \hat y_i$.
+
+## 5.2 Bootstrapping
+
+Quantifying uncertainty in a given estimator or statistical learning method. Randomly sample, with *replacement*, observations from a dataset then compute the average value and standard error of the estimate.
+
+## Lab 5: CV and Bootstrapping
+
+```{r Validation Set}
+set.seed(1)
+train <- sample(392, 196)
+
+# fit the model, using the training data
+lm.fit <- lm(mpg ~ horsepower, data = Auto, subset = train)
+# compute MSE on the hold out data
+mse.val <- mean((Auto$mpg - predict(lm.fit, Auto))[-train] ^ 2)
+# use a polynomial fit
+lm.fit2 <- lm(mpg ~ poly(horsepower, 2), data = Auto, subset = train)
+mse.val2 <- mean((Auto$mpg - predict(lm.fit2, Auto))[-train] ^ 2)
+mse.val; mse.val2
+```
+
+```{r LOOCV}
+library(boot)
+# use generalized linear model
+# default "familiy" is linear least squares
+glm.fit <- glm(mpg ~ horsepower, data = Auto)
+sapply(list(lm.fit, glm.fit), coef)
+# compute LOOCV and display MSE
+cv.err <- cv.glm(Auto, glm.fit)
+cv.err$delta
+# compute LOOCV for higher order models
+cv.error <- rep(0, 5)
+for(ii in 1:5) {
+  cv.error[ii] <- cv.glm(Auto, 
+                         glm(mpg ~ poly(horsepower, ii), data = Auto))$delta[1]
+}
+cv.error
+```
+
+```{r k-fold cross-validation}
+set.seed(17)
+cv.error.10 <- rep(0, 10)
+for (ii in 1:10) {
+  glm.fit <- glm(mpg ~ poly(horsepower, ii), data = Auto)
+  cv.error.10[ii] <- cv.glm(Auto, glm.fit, K = 10)$delta[1]
+}
+cv.error.10
+plot(cv.error.10, type = "l")
+```
+
+```{r Bootstrapping}
+# 1. Create statistic of interest
+# 2. use boot() to repeatedly sample with replacement
+alpha.fn <- function(data, index) {
+  X <- data$X[index]
+  Y <- data$Y[index]
+  return ((var(Y)-cov (X,Y))/(var(X)+var(Y) -2* cov(X,Y)))
+}
+alpha.fn(Portfolio, 1:100)
+# automating random sampling with replacemnt
+set.seed(1)
+boot(Portfolio, alpha.fn, R = 1000)
+
+boot.fn <- function(data, index) return(coef(lm(mpg ~ horsepower, data = data, subset = index)))
+boot(Auto, boot.fn, 1000)
+summary(lm(mpg~horsepower, data=Auto))$coef
+# the bootstrap uses no assumptions
+# SE formulas rely on certain assumptions: constant variance, fixed x_i
+
+boot.fn2 <- function(data, index) return(coef(lm(mpg ~ horsepower + I(horsepower^2), data = data, subset = index)))
+boot(Auto, boot.fn2, 1000)
+summary(lm(mpg~horsepower + I(horsepower^2), data=Auto))$coef
+```
+
+## Ch5 Exercises
+pg. 197
+1. math proof, blah.....
+
+2. 
+(a) probability of not choosing the $j$th observation is $1 - 1/n$
+(b) mutiply the probabilities, so $(1 - 1/n)^2$
+(c) not choosing an observation at all. Each pick has probability $1 - 1/n$. Having $n$ picks results in a probability of $(1 - 1/n)^n$.
+(d) with $n = 5$, probability of picking $j$ is $1 - (1 - 1/5)^5 = 0.67232$
+(e) $\text{PR}(j | n = 100) = 0.6339677$
+(f) $\text{PR}(j | n = 1000) = $ `r 1 - (1 - 1/1000)^1000`
+(g)
+```{r}
+library(scales)
+ggplot(tibble(
+    x = 1:100000,
+    y = 1 - (1 - 1/x)^x
+  ), 
+  aes(x, y)) +
+  geom_line() +
+  scale_x_log10() +
+  scale_y_continuous(limits = c(0, 1), labels = percent) +
+  labs(x = "n",
+       y = "Probability the jth observation\nis in the bootstrap sample")
+  
+```
+
+(h) 
+```{r}
+store <- rep(NA, 10000)
+for (ii in 1:10000) {
+  store[ii] <- sum(sample(1:100, rep = T) == 4) > 0
+}
+mean(store)
+```
+
+3. 
+(a) *k*-fold cross-validation splits the observations into *k* subsets for validation. 
+(b) better than validation set because it uses more observations, and better than LOOCV because it has less variance.
+
+4. Choose a random sample of observations to train the model on, and record the coefficients. Repeat the process many times. Then compute the average and variance of the coefficients (*bootstrapping*).
+
+5. 
+```{r}
+library(caret)
+set.seed(1)
+output <- vector("list", 3)
+output2 <- vector("list", 3)
+
+for (ii in 1:3) {
+  train <- sample(1:nrow(Default), 0.8 * nrow(Default))
+  default.ref <- Default[-train, "default"]
+  
+  glm.fit <- glm(default ~ income + balance, data = Default, family = "binomial", subset = train)
+  glm.probs <- predict(glm.fit, Default[-train,])
+  glm.pred <- factor(glm.probs > 0.5)
+  levels(glm.pred) <- c("No", "Yes")
+  output[[ii]] <- table(glm.pred, default.ref)
+  
+    glm.fit2 <- glm(default ~ income + balance + student, data = Default, family = "binomial", subset = train)
+  glm.probs2 <- predict(glm.fit2, Default[-train,])
+  glm.pred2 <- factor(glm.probs2 > 0.5)
+  levels(glm.pred2) <- c("No", "Yes")
+  output2[[ii]] <- table(glm.pred2, default.ref)
+}
+output
+output2
+```
+
+6.
+```{r}
+boot.fn <- function(data, index) +
+  return(coef(glm(default ~ income + balance, data = data, family = "binomial", subset = index)))
+boot(Default, boot.fn, 100)
+summary(glm(default ~ income + balance, data = Default, family = "binomial"))$coef
+```
+7.
+```{r}
+set.seed(1)
+outPred <- vector("logical", nrow(Weekly))
+for(ii in 1:nrow(Weekly)) {
+  train <- -ii
+  glm.fit <- glm(Direction ~ Lag1 + Lag2, data = Weekly, family = "binomial", subset = train)
+  glm.probs <- predict(glm.fit, Weekly[-train, ])
+  glm.pred <- glm.probs > 0.5
+  outPred[[ii]] <- glm.pred
+}
+outPred <- factor(outPred)
+levels(outPred) <- c("Down", "Up")
+mean(outPred == Weekly[ , "Direction"])
+
+glm.fit2 <- glm(Direction ~ Lag1 + Lag2, data = Weekly, family = "binomial")
+cv.err <- cv.glm(Weekly, glm.fit2)
+cv.err$delta
+```
+8.
+```{r}
+set.seed(1)
+df <- tibble(
+  x = rnorm(100),
+  y = x - 2 * x^2 + rnorm(100)
+)
+output <- vector("double", 4)
+for (ii in 1:4) {
+  lm.fit <- glm(y ~ poly(x, ii), data = df)
+  cv.err <- cv.glm(df, lm.fit)
+  output[[ii]] <- cv.err$delta[1]
+}
+output
+summary(glm(y ~ poly(x, 4), data = df))$coef
+ggplot(df, aes(x, y)) + 
+  geom_point() +
+  geom_smooth(formula = y ~ poly(x, 2), method = "lm", se = F)
+```
+
+9.
+```{r}
+library(MASS)
+tibble(
+  m = mean(Boston$medv),
+  sd = sd(Boston$medv) / sqrt(length(Boston$medv))
+)
+boot.fn <- function(data, index) return(mean(data[index]))
+boot(Boston$medv, boot.fn, 1000)
+c(22.53281 - 2*0.406628, 22.53281 + 2*0.406628)
+t.test(Boston$medv)
+
+boot.fn <- function(data, index) return(median(data[index]))
+boot(Boston$medv, boot.fn, 1000)
+
+boot.fn <- function(data, index) return(quantile(data[index], seq(0, 1, 0.1))[2]
+)
+boot(Boston$medv, boot.fn, 1000)
+```
+

@@ -1,0 +1,272 @@
+---
+title: "ISL Ch8 Tree-Based Methods"
+author: "Andrew Washburn"
+date: "6/23/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ISLR)
+library(caret)
+library(rpart)
+library(rpart.plot)
+```
+
+## 8.1 Decision Tree Basics
+
+Trees stratify or segment the predictor space into a number of simple regions. Predictions on observations are made by the mean of the observations.
+
+### Regression Trees
+
+```{r echo=FALSE}
+library(rpart); library(rpart.plot)
+tree <- rpart(log(Salary) ~ Years + Hits, data = Hitters,
+              control = rpart.control(maxdepth = 2))
+rpart.plot(tree)
+```
+The observation space is segmented into regions called terminal nodes or leaves of the tree. The points along the tree are internal nodes. And the segments that connect the nodes are called branches. 
+
+#### Prediction via Stratification of the Feature Space
+
+Building a regression tree takes two steps:
+1. Divide the predictor space $X_1, X_2, \ldots, X_p$ into $J$ distinct and non-overlapping regions $R_1, R_2, \ldots, R_J$
+2. Every observation that falls into region $R_j$ make the same prediction, which is the mean of the response values for the training observations in $R_j$
+
+For example, the baseball players with less than 4.5 years of experience have an average salary (in thousands of dollars) of `r exp(5.1)`, and `r exp(6.4)` for more than 4.5 years of experience. The more experienced players can be further divided by the number of hits they have. 
+The tree is built from the top down in a greedy fashion, meaning it takes the best binary split at that node without regard to successive splits. To perform recursive binary splitting, first select the predictor $X_j$ and the cutpoint $s$ such that the regions 
+$$ \begin{eqnarray}
+R_1(j, s) = \{ X | X_j  < s \} \quad &\text{and}& \quad R_2(j,s) = \{ X | X_j  \geq s \} \\
+\text{minimizes} \quad \text{RSS} = \sum_{i: x_i \in R_1(j, s)} (y_i - \hat y_{R_1})^2 \quad &+& \sum_{i: x_i \in R_2(j, s)} (y_i - \hat y_{R_2})^2
+
+\end{eqnarray} $$
+Where $\hat y_R$ is the mean response for the training observations in that region. Next step, the previously created regions are stratified as before. This continues until a stopping point is reached (max depth, number of observations, etc.). 
+
+#### Tree Pruning
+
+A deep tree has a lot of variance and will probably overfit the data. A smaller tree will have lower variance at the cost of increased bias. Just limiting the tree is not enough; a bad initial split might be followed by a good split. A better strategy is to grow a very large tree $T_0$ then prune it back to obtain a subtree. Ideally the best subtree has the lowest test error. Cross-validation is too expensive, so we use a method called cost complexity pruning, also known as weakest link pruning.
+
+Algorithm for Building a Regression Tree
+1. Use recursive binary fitting to grow a large tree
+2. Apply cost complexity pruning to the large tree and obtain a sequence of best subtrees as a function of $\alpha$
+3. Use K-fold cross-validation to choose $\alpha$. For each fold $k$:
+  (a) Repeat Steps 1 and 2 on all but the $k$th fold of the training data.
+  (b) Evaluate MSE on the left-out $k$th fold as a function of $\alpha$
+  Then average the results for each value of $\alpha$ and choose the minimum.
+4. Return the subtree from Step 2 given the smallest $\alpha$
+
+Rather than considering every subtree, we consider a sequence of trees indexed by a nonnegative tuning parameter $\alpha$. For each value of $\alpha$ there corresponds a subtree $T \subset T_0$ such that
+$$
+\text{min} \quad \text{RSS} = \sum_{m = 1}^{\left| T \right|} \sum_{i: x_i \in R_m} (y_i - \hat y_{R_m})^2 + \alpha \left| T \right|
+$$
+Where $\left| T \right|$ indicates the number of terminal nodes in tree $T$, $R_m$ is the rectangle corresponding to the $m$th terminal node, and $\hat y_{R_m}$ is the predicted response (mean value) associated with $R_m$. The tuning parameter $\alpha$ controls the bias-variance trade off, with $\alpha = 0$ being the whole tree $T_0$. As $\alpha$ increases, there's a penalty associated with increasing terminal nodes $\left| T \right|$, similar to the lasso in linear regression. 
+
+### Classification Trees pg. 311
+
+Classification trees are very similar to regression trees but they predict a qualitative response. Duh. Now the mean response of the training observations is determined by the most common occuring class, like nearest neighbors. Instead using RSS to make binary splits, we use the classification error rate $E = 1 - \text{max}_k (\hat p_{mk})$ where $\hat p_{mk}$ represents the proportion of training observations in the $m$th region that are from the $k$th class. However, in practice this is not sensitive enough for tree-growing, so we use other measures.
+$$
+G = \sum_{k = 1}^K \hat p_{mk} (1 - \hat p_{mk}) \qquad \text{Gini Index}
+$$
+The Gini index is a measure of the total variance across the $K$ classes. A small value indicates that a node contains predominantly observations from a single class. It is *pure*.
+$$
+D = - \sum_{k = 1}^K \hat p_{mk} \log \hat p_{mk} \qquad \text{Entropy}
+$$
+Since $0 \leq \hat p_{mk} \leq 1$, it follows that $0 \leq \hat p_{mk} \log \hat p_{mk}$. One can show the entropy will take on a value near zero if the $\hat p_{mk}$'s are all near zero or one. Meaning the entropy will be small if the $m$th node is pure.
+
+### Trees versus Linear Models
+
+Which is better? Depends on the problem at hand. If the response is well approximated by a linear model, the linear regression it is! If instead the data has highly non-linear and complex relationships between the features and response, then decision trees may outperform classical approaches.
+
+### Advantages and Disadvantages of Trees
+
++ Trees are very easy to explain! And they can be displayed graphically.
++ Some believe trees more closely mirror human decision making
++ Trees easily handle qualitative variables without creating dummy variables
+- Unfortunately, trees do not have the same level of predictive accuracy as other methods
+- Additionally, trees can be very fragile. Small changes in the data cause big model changes.
+
+## 8.2 Bagging, Random Forests, Boosting pg.316
+
+### 8.2.1 Bagging
+
+Decision trees suffer from high variance. Splitting the data into two random parts will lead to very different model fits. A low variance procedure yields similar results if applied repeatedly ti distinct datasets. *Bootstrap aggregation*, or bagging, is a general purpose procedure for reducing the variance of a statistical learning method. 
+Given a set of $n$ independent observations $Z_1, \ldots, Z_n$ each with a variance $\sigma^2$, the variance of the mean $\bar Z$ of the observations is $\sigma^2 / n$. In other words, averaging a set of observations reduces variance. We could calculate $\hat f^1 (x), \hat f^2 (x), \ldots, \hat f^B (x)$ using $B$ separate training sets, and average them in order to obtain a single low-variance statistical learning model given by
+$$
+\hat f_{bag} (x) = \frac{1}{B} \sum_{b = 1}^B \hat f^{*b} (x)
+$$
+Bagging is when we bootstrap training sets to achieve this. For each iteration we build a deep tree, on that has high variance, but low bias. Averaging these $B$ trees together reduces the variance. 
+
+#### Out-of-Bag Error Estimation pg.318
+
+Estimating the test error of a bagged model is as follows. On average, each bagged tree uses about two-thirds of the observations (see Ch5 exercise 2). The remaining one-third of observations left out are referred to as the *out-of-bag* (OOB) observations. For each tree in which the $i$th observation was OOB, we can predict this, yielding $B/3$ predictions for the $i$th observation. Averaging these predictions for all $n$ observations gives the overall OOB MSE. 
+
+#### Variance Importance Measures
+
+Bagging many, many trees together obsfucates their interpretability. We can get an overall summary of the importance of each predictor using the RSS or Gini index, recording the total RSS that is decreased from splits on an important predictor. 
+
+### 8.2.2 Random Forests
+
+Like bagging, random forests builds a number of decision trees on bootstrapped training samples. But in building thse decision trees, each time a split is considered, a random sample of $m$ predictors is chosen as split candidates from the full set of $p$ predictors. A fresh sample of $m$ predictors is taken at each split, and typically we choose $m \approx \sqrt p$. Not considering a majority of the available predictors sounds crazy, but it has a clever rationale. Suppose the dataset has one very strong predictor. Then the collection of bagged trees will have many trees with the strong predictor in the top split. Consequently, all of the bagged trees will look quite similar and predictions will be highly correlated, and highly correlated predictions do not reduce the variance as much as uncorrelated predictions. 
+Random forest uncorrelate the predictions by only considering a subset of variables. On average $(p - m) / p$ of the splits do not even consider the strong predictor. This process *decorrelates* the trees. 
+
+### 8.2.3 Boosting
+
+Boosting is similar to bagging in that it is a general approach that can be applied to many statistical learning methods for regression or classification. 
+- *Bagging*: boostrap the original training data, fit a model to each set, then average all the models together.
+- *Boosting*: similar to bagging, but trees are grown sequentially: each tree is grown using information from previously grown trees. Instead of bootstrapping, each tree is fit on a modified version of the original dataset.
+
+- Algorithm for Boosting Regression Trees
+1. Set $\hat f (x) = 0$ and $r_i = y_i$ for all $i$ in the training set.
+2. For $b = 1, 2, \ldots, B$, repeat:
+  (a) Fit a tree $\hat f^b$ with $d$ splits ($d+1$ terminal nodes) to the training data $(X,r)$.
+  (b) Update $\hat f$ by adding in a shrunken version of the new tree $\hat f (x) \leftarrow \hat f (x) + \lambda \hat f^b (x)$
+  (c) Update the residuals $r_i \leftarrow r_i - \lambda \hat f^b (x_i)$
+3. Output the boosted model: $\hat f (x) = \sum_{b = 1}^B \lambda \hat f^b (x)$
+
+What's the idea? Unlike fitting a single large decision tree to the data, which amounts to fitting the data *hard* and potentially overfitting, the boosting approach instead learns *slowly*. Boosting has three tuning parameters:
+1. The number of trees $B$. Too large a $B$ can overfit. Use CV to select $B$.
+2. Shrinkage parameter $\lambda$. This controls the boosting learning rate. Typical values are 0.01 or 0.001.
+3. Number of $d$ splits in each tree. Often $d = 1$ works well, where each tree is a stump consisting of a single split. In this case the boosted enseble is fitting an additive model, since each term involves only a single variable.
+
+## Lab 8: Decision Trees
+
+```{r}
+Carseats$High <- as.factor(if_else(Carseats$Sales <=8, "No", "Yes"))
+```
+
+```{r Fitting Classification Trees}
+set.seed(2)
+
+tree.carseats <- rpart(High ~ . -Sales ,data = Carseats, method = "class")
+
+rpart.plot(tree.carseats)
+plotcp(tree.carseats)
+printcp(tree.carseats)
+```
+
+```{r Regression Trees} 
+library(MASS)
+set.seed(1)
+train <- sample(1:nrow(Boston), nrow(Boston) / 2)
+
+tree.boston <- rpart(medv ~ ., data = Boston, 
+                     method = "anova", subset = train)
+yhat <- predict(tree.boston, newdata = Boston[-train,])
+boston.test <- Boston$medv[-train]
+plot(yhat, boston.test)
+mean((yhat - boston.test)^2)
+printcp(tree.boston)
+rpart.plot(tree.boston)
+```
+
+```{r Random Forests}
+library(randomForest)
+set.seed(1)
+
+bag.boston <- randomForest(medv ~ ., data = Boston,
+                           subset = train, mtry = 13, importance = T)
+
+yhat.bag <- predict(bag.boston, newdata = Boston[-train,])
+plot(yhat.bag, boston.test-yhat.bag)
+mean((yhat.bag - boston.test)^2)
+
+rf.boston <- randomForest(medv ~ ., data = Boston,
+                          subset = train, importance = T)
+importance(rf.boston)
+# %IncMSE is the mean decrease in accuracy on MSE of OOB samples when predictor is left out
+# IncNodePurity: total decrease in node purity that results from splits over that variable
+varImpPlot(rf.boston)
+```
+
+```{r Boosting}
+library(gbm)
+set.seed(1)
+
+boost.boston <- gbm(medv ~ ., data = Boston[train, ], 
+                    distribution = "gaussian", 
+                    n.trees = 5000, 
+                    interaction.depth = 4,
+                    shrinkage = 0.01)
+summary(boost.boston)
+plot(boost.boston, i = "lstat")
+yhat.boost <- predict(boost.boston, newdata = Boston[-train,], n.trees = 5000)
+mean((yhat.boost - boston.test)^2)
+```
+## Exercise 8 pg.332
+
+3.Compare the Gini index, classification error, and entropy as a function of $\hat p_{m1}$
+```{r Q3}
+df <- tibble(
+  p1 = seq(0, 1, 0.01),
+  p2 = 1 - p1,
+  error = 1 - pmax(p1, p2),
+  gini = p1 * (1 - p1) + p2 * (1 - p2),
+  entropy = - p1 * log(p1) - p2 * log(p2)
+)
+df
+?max()
+df %>%
+  gather(type, value, -p1, -p2) %>%
+  ggplot(aes(x = p1, y = value, color = type)) +
+  geom_line() +
+  labs(title = "Binary Region classification errors",
+       y = "Error Rate")
+```
+
+6. Describe building a regression tree.
+  1. Select predictor $X_j$ and split into two regions by cutpoint $s$ so that ${X | X_j <s}$ and ${X | X_j > s}$ minimizes RSS. This corresponds to $s = \hat \mu_{X_j}$
+  2. Repeat the process for the resulting regions in the previous step.
+  3. Continue until a stopping point is reached.
+  
+7.
+![](RForestQ7.png)
+8.
+```{r 8Q8}
+set.seed(1)
+train <- sample(1:nrow(Carseats), nrow(Carseats) * 0.8)
+tree.carseats <- rpart(Sales ~ ., data = Carseats, subset = train)
+rpart.plot(tree.carseats)
+yhat <- predict(tree.carseats, newdata = Carseats[-train,])
+mean((yhat - Carseats$Sales[-train])^2)
+# printcp(tree.carseats) # 4 splits is the best
+
+tree.carseats4 <- rpart(Sales ~ ., data = Carseats, cp = 0.015971, subset = train)
+rpart.plot(tree.carseats4)
+yhat4 <- predict(tree.carseats4, newdata = Carseats[-train,])
+mean((yhat4 - Carseats$Sales[-train])^2)
+# Test MSE reduced from 4.78 to 4.71
+
+bag.carseat <- randomForest(Sales ~ ., data = Carseats, 
+                            subset = train, 
+                            mtry = length(Carseats)-1, 
+                            importance = T)
+yhat.bag <- predict(bag.carseat, newdata = Carseats[-train,])
+mean((yhat.bag - Carseats$Sales[-train])^2)
+# Bagging Test MSE reduced to 2.07
+importance(bag.carseat)
+
+rf.carseat <- randomForest(Sales ~ ., data = Carseats, 
+                            subset = train, 
+                            importance = T)
+yhat.rf <- predict(rf.carseat, newdata = Carseats[-train,])
+mean((yhat.rf - Carseats$Sales[-train])^2)
+# Random Forest Test MSE reduced to 2.54
+
+```
+
+9.
+```{r 8Q9}
+library(caret)
+set.seed(1)
+train <- sample(1:nrow(OJ), 800)
+
+tree.oj <- rpart(Purchase ~ ., data = OJ, subset = train)
+yhat.tr.oj <- factor(predict(tree.oj, newdata = OJ[-train, ])[,1] > 0.5, labels = c("CH", "MM"))
+yhat.tr.oj
+rpart.plot(tree.oj)
+confusionMatrix(yhat.tr.oj, OJ$Purchase[-train])
+# printcp(tree.oj)
+
+```
+

@@ -1,0 +1,322 @@
+---
+title: "ISL Ch7 Non-Linear Regression"
+author: "Andrew Washburn"
+date: "6/23/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ISLR)
+library(leaps)
+library(tidyverse)
+library(MASS)
+```
+
+## 7.1 Polynomial Regression
+
+$$ 
+y_i = \beta_0 + \beta_1 x_i + \beta_2 x_i^2 + \beta_3 x_i^3 + \cdots + \beta_d x_i^d + \epsilon_i
+$$
+For a large enough polynomial of degree $d$ (usually 3 or 4), we can approximate an extremely nonlinear function. Be careful of the standard error bounds where there isn't much data.
+
+## 7.2 Step Functions
+
+Break the range of $X$ into bins, and fit a different constant in each bin (like mean, median). We're transforming a continuous variables into an ordered categorical variable with $c_1, c_2, \ldots, c_K$ cutpoints in the range of $X$.
+
+$$ \begin{eqnarray}
+&C_0 (X) &=& I(X < c_1), \\
+&C_1 (X) &=& I(c_1 \leq X < c_2), \\
+&C_2 (X) &=& I(c_2 \leq X < c_3), \\
+&\vdots& \\
+&C_{K-1} (X) &=& I(c_{K-1} \leq X < c_K), \\
+&C_K (X) &=& I(c_K \leq X)
+\end{eqnarray} $$
+
+Where $I(\cdot)$ is an indicator function that returns a 1 if the condition is true, and returns 0 otherwise. Notice that for any value of $X, C_0(X) + C_1(X) + \ldots + C_K(X) = 1$ since $X$ must be in exactly one of the $K+1$ intervals. Then we fit a linear model using the cut intervals as predictors 
+$$
+y_i = \beta_0 + \beta_1 C_1(x_i) + \beta_2 C_2(x_i) + \cdots + C_K(x_i) + \epsilon_i
+$$
+The coefficients in this case are the means of each interval: $\beta_0 = \mu_{Y}$ for $X < c_1$. 
+But simple means for cut intervals can have high bias that misses important trends. We must look further.
+
+## 7.3 Basis Functions
+
+Have a family of functions or transformations that apply to a variable $X : b_1(X), b_2(X), \ldots, b_K(X)$. Instead of fitting that linear model with $X$, we use the basis functions
+
+$$
+y_i = \beta_0 + \beta_1 b_1(x_i) + \beta_2 b_2(x_i) + \cdots + b_K(x_i) + \epsilon_i
+$$
+We choose the basis functions ahead of time: polynomial regression $b_j(x_i) = x_i^j$, for piecewise-constant $b_j(x_i) = I(c_j \leq x_i < c_{j+1})$.
+
+## 7.4 Regression Splines
+
+### Piecewise Polynomials
+
+Fit separate low-degree polynomials over regions of $X$. There are $K$ knots (places where the coefficients change) and $d$ polynomial constants per cut. 
+Example: for $d = 3$, the fist cut has coefficients $\beta_{01}, \beta_{11}, \beta_{21}, \beta_{31}$, and the second cut coefficients are $\beta_{02}, \beta_{12}, \beta_{22}, \beta_{32}$
+We can fit any order polynomial we want. Order 0 is just the step function!
+
+### Constraints and Splines
+
+At each knot point, we constrain the function to be continuous and smooth (first and second derivatives are continuous). In general, a cubic spline with $K$ knots uses a total of $4 + K$ degrees of freedom.
+
+### Spline Basis Representation
+
+How do we fit a piecewise degree-*d* polynomial under the constraint that it (and it's *d*-1 derivatives) are continuous? Turns out we can use a basis function. Start off the basis function with the normal cubic $x, x^2, x^3$ then add one *truncated power* basis function per knot $\xi$.
+
+$$
+h(x, \xi) = (x - \xi)^3_+ =  \left\{ \begin{eqnarray} &(x - \xi)^3 \quad &\text{if} \quad x > \xi \\& 0 \quad &\text{otherwise} \end{eqnarray}\right. \qquad \text{truncated power basis function}
+$$
+One can show that adding a term of the form $\beta_4h(x,\xi)$ to a cubic polynomial will lead to a discontinuity only in the third derivative at $\xi$, and continuous at the lower order derivatives. We use least squares to fit a function with $3 + K$ predictors of the form $X, X^2, X^3, h(X,\xi_1), h(X, \xi_2), \ldots, h(X, \xi_K)$ and estimate a total of $4 + K$ regression coefficients ($4+K$ degrees of freedom). 
+A *natural spline* is a regression spline with the additional boundary constraint that it is linear in the extreme cuts.
+
+### Choosing the Number and Locations of the Knots
+
+Typically use software to compute a spline with a specified degree of freedom. Use cross-validation to find the smallest RSS.
+
+### Comparison to Polynomial Regression
+
+Ordinary polynomials must use high-degree terms to get the same amount of flexibility (degrees of freedom) as a spline. Near the boundaries, the high-degree polynomial can have undesired results.
+
+## 7.5 Smoothing Splines pg. 277
+
+By fitting a smooth curve to the data, we really want to find some function $g(x)$ that fits the observed data well by minimizing the $\text{RSS} = \sum_{i=1}^n (y_i - g(x_i))^2$. However, if we don't put any constraints on $g(x)$ then it could simply interpolate all of the data. We want a function that minimizes RSS but is also *smooth*.
+$$
+\sum_{i=1}^n (y_i - g(x_i))^2 + \lambda \int g''(t)^2dt
+$$
+The smoothing parameter is the sum of the second derivative of the function. Basically, it's slope is not allowed to change very much, with lambda as a tuning parameter for how much it can change (as $\lambda \rightarrow \infty$ $g$ becomes more smooth). Another viewpoint is minimizing the *roughness* of the function. Note the second derivative of a straight line is zero, so it's perfectly smooth. We see $\lambda$ controls the bias-variance trade-off of the smoothing spline.
+It can be shown the function $g(x)$ that satisfies this criteria is a piecewise cubic polynomial with knots at unique values of $x_1, \ldots, x_n$ and continuous at the first and second derivatives. Furthermore, it is linear in the regions outside the extreme knots. In other words, the function $g(x)$ that minimizes the smoothing cost function is a natural cubic spline with knots at $x_1, \ldots, x_n$! But it is a shrunken version of the natural cubic spline, where $\lambda$ controls the level of shrinkage.
+
+### Choosing $\lambda$
+
+The smoothing parameter $\lambda$ controls the effective degrees of freedom. As $\lambda$ increases from $0 \rightarrow \infty$, the effective degrees of freedom $df_\lambda$ decrease from $n \rightarrow 2$. The smoothing spline has $n$ parameters, and hence $n$ nominal degrees of freedom, but these $n$ parameters are heavily constrained or shrunk down. The definition of the effective degrees of freedom $df_\lambda$ is somewhat technical. 
+$$\begin{eqnarray}
+\mathbf{\hat g_\lambda} &=& \mathbf{S_\lambda y} \\
+df_\lambda &=& \sum_{i=1}^n {\mathbf S_\lambda}_{ii}
+\end{eqnarray} $$
+
+Where $\mathbf{\hat g_\lambda}$ is the smooth spline solution for a given $\lambda$, a $n$-vector containing the fitted values of the smoothing spline at points $x_1, \ldots, x_n$. The effective degrees of freedom $df\lambda$ equates from the sum of the diagonal elements of $\mathbf S_\lambda$. 
+The problem of the smoothing spline is to find the optimal tuning parameter $\lambda$. It turns out leave-one-out-cross-validation has a nifty formula for computing this! (see *Essentials of Statistical Learning* pg 153)
+
+## 7.6 Local Regression
+
+Local regression is another approach for fitting a flexible non-linear function, fitting a linear function at $x_0$ weighted by only the nearby training observations. 
+
+Algorithm for *Local Regression* at $X = x_0$
+1. Gather the fraction $s = k/n$ of training points whose $x_i$ are closest to $x_0$
+2. Assign a weight $K_{i0} = K(x_i, x_0)$ to each point in this neighborhood, so that the point furthest from $x_0$ has weight zero, and the closest has the highest weight. All but these $k$ nearest neighbors get weight zero.
+3. Fit a weighted least squares regression to find the coefficients $\hat\beta_0, \hat\beta_1$
+$$ 
+\text{min} \quad \text{RSS} = \sum_{i = 1}^n K_{i0} (y_i - \beta_0 - \beta_1 x_i)^2
+$$
+4. The fitted value at $x_0$ is given by $\hat f(x_0) = \hat \beta_0 + \hat \beta_1 x_0$
+
+The choices for local regression are: choosing the weights $K$; whether to fit a linear, constant, or quadratic regression; and choosing the span $s = k/n$. The span controls the spline's flexibility. The smaller the span, the more wiggly the fit, the larger the span, the more linear it is (`R`'s default loess span is 75%).
+
+## 7.7 Generalized Additive Models
+
+Generalized additive models (GAMs) provide a general framework for extending a standard linear model by allowing non-linear functions of each of the variables while maintaining *additivity*. A natural way to extend the multiple linear regression model is to replace each linear component $\beta_j x{ij}$ with a smooth non-linear function $f_j(x_{ij})$
+$$\begin{eqnarray}
+y_i \quad &=& \quad \beta_0 + \sum_{j=1}^p \beta_j x_{ij} + \epsilon \\
+&=& \quad \beta_0 + \sum_{j=1}^p f_j (x_{ij}) + \epsilon
+\end{eqnarray}$$
+We can use the GAM to fit different models to different variables, such as a smoothing spline to one and a piecewise constant to another, then smack all the regression functions into a big matrix.
+
+Advantages:
+- GAMs allow fitting a non-linear $f_j$ to each $X_j$ so we can automatically model non-linear relationships that standard linear regression will miss.
+- Non-linear fits can potentially make more accurate predictions for the response $Y$
+- The smoothness of the function $f_j$ for $X_j$ can be summarized via degrees of freedom
+
+The main limitation of GAMs is that the model is restricted to be additive. Important interactions can be missed. But we can manually add interaction terms like we did with linear regression.
+
+## 7.8 Lab: Non-Linear Modeling pg. 288
+```{r lab 7 setup}
+library(ISLR); library(modelr)
+
+add_predictions <- function (data, model, var = "pred", ...) {
+  fit <- as_tibble(stats::predict(model, data, ...)$fit)
+  names(fit)[1] <- var  
+  bind_cols(data, fit)
+}
+```
+
+```{r polynomial regression and step functions}
+# the poly() func returns orthogonal polynomial, meaning the terms are linearly independent of one another
+poly.fit <- lm(wage ~ poly(age, 4), data = Wage)
+coef(summary(poly.fit)) 
+
+# compute grid sequence
+grid <- Wage %>%
+  data_grid(age)
+preds <- predict(poly.fit, grid, se = T)
+grid <- grid %>%
+  mutate(pred = preds$fit,
+         se.min = pred - 2 * preds$se.fit,
+         se.max = pred + 2 * preds$se.fit)
+
+ggplot(grid, aes(age, pred)) +
+  geom_point(data = Wage, aes(age, wage), alpha = 1/10, position = "jitter") +
+  geom_line(color = "blue") +
+  geom_line(aes(y = se.min), linetype = 2) +
+  geom_line(aes(y = se.max), linetype = 2) 
+
+  
+glm.fit <- glm(I(wage > 250) ~ poly(age, 3), data = Wage, family = "binomial")
+glm.preds <- predict(glm.fit, list(age = grid$age), se = T)
+str(glm.preds)
+grid <- grid %>%
+  mutate(bi.pred = exp(glm.preds$fit) / (1 + exp(glm.preds$fit)),
+         logit.se.min = glm.preds$fit - 2 * glm.preds$se.fit,
+         logit.se.max = glm.preds$fit + 2 * glm.preds$se.fit,
+         bi.se.min = exp(logit.se.min) / (1 + exp(logit.se.min)),
+         bi.se.max = exp(logit.se.max) / (1 + exp(logit.se.max)))
+
+ggplot(Wage, aes(age, wage)) +
+  geom_point(alpha = 1/10, position = "jitter") +
+  geom_smooth(method = "lm", formula = y ~ poly(x, 3)) +
+  geom_smooth(method = "lm", formula = y ~ cut(x, 4), color = "red") +
+  geom_smooth(method = "gam", formula = y ~ bs(x, df = 6), color = "green") +
+  geom_smooth(method = "loess", span = 0.2, color = "orange")
+
+ggplot(grid, aes(age, bi.pred)) +
+  geom_point(data = Wage, aes(age, factor(I(wage > 250))), 
+             height = 0, alpha = 1/10) + 
+  geom_line() +
+  geom_ribbon(aes(ymin = bi.se.min, ymax = bi.se.max), alpha = 1/5) +
+  xlim(c(17, 70)) 
+
+
+```
+```{r GAMs}
+library(gam)
+gam1 <- lm(wage ~ ns(year, 4) + ns(age, 5) + education, data = Wage)
+gam.m3 <- gam::gam(wage ~ gam::s(year, 4) + gam::s(age, 5) + education, data = Wage)
+plot(gam.m3, se = T, col = "blue")
+
+gam.lr <- gam::gam(I(wage > 250) ~ year + gam::s(age, df = 5) + education, 
+              family = "binomial", data = Wage, subset = (education != "1. < HS Grad"))
+plot(gam.lr, se = T, col = "green")
+```
+
+
+## 7.9 Exercises pg. 297
+
+6. 
+```{r Q6}
+# perform polynomical regression on wage ~ age. Use CV to optimally select degree.
+library(broom)
+computeTestMSE <- function(mod) {
+  yhat <- augment(mod, data_frame(age = Wage$age[-train])) 
+  mean((yhat - Wage$wage[-train])^2)
+}
+set.seed(1)
+train <- sample(1:nrow(Wage), nrow(Wage) / 10)
+
+lm.fits <- map(1:10, ~ lm(wage ~ poly(age, .x), data = Wage, subset = train))
+modStats <- map_df(lm.fits, glance)
+modStats <- modStats %>%
+  bind_cols(testMSE = map_dbl(lm.fits, computeTestMSE))
+modStats %>%
+  dplyr::select(df, AIC, BIC) %>%
+  gather(stat, value, -df) %>%
+  ggplot(aes(df, value, color = stat)) +
+  geom_line() +
+  geom_point()
+modStats %>%
+  dplyr::select(df, r.squared, adj.r.squared) %>%
+  gather(stat, value, -df) %>%
+  ggplot(aes(df, value, color = stat)) +
+  geom_line() +
+  geom_point()
+
+
+step.fits <- map(2:15, ~ lm(wage ~ cut(age, .x), data = Wage, subset = train))
+modStepStats <- map_df(step.fits, glance)
+
+# map(step.fits, tidy)
+modStepStats %>%
+  dplyr::select(df, AIC, BIC) %>%
+  gather(stat, value, -df) %>%
+  ggplot(aes(df, value, color = stat)) +
+  geom_line() +
+  geom_point()
+modStepStats %>%
+  dplyr::select(df, r.squared, adj.r.squared) %>%
+  gather(stat, value, -df) %>%
+  ggplot(aes(df, value, color = stat)) +
+  geom_line() +
+  geom_point()
+```
+
+9.
+```{r Q9}
+lm.fits <- map(1:10, ~ lm(nox ~ poly(dis, .x), data = Boston))
+modStats <- map_df(lm.fits, glance)
+modStats %>%
+  dplyr::select(df, AIC, BIC) %>%
+  gather(stat, value, -df) %>%
+  ggplot(aes(df, value, color = stat)) +
+  geom_line() +
+  geom_point()
+modStats %>%
+  dplyr::select(df, r.squared, adj.r.squared) %>%
+  gather(stat, value, -df) %>%
+  ggplot(aes(df, value, color = stat)) +
+  geom_line() +
+  geom_point()
+# quartic fit x^4 looks good.
+library(splines); library(modelr)
+bs.fit <- lm(nox ~ bs(dis, df = 4), data = Boston)
+pred <- predict(bs.fit, newdata = data_grid(Boston, dis))
+grid <- bind_cols(data_grid(Boston, dis), pred = pred)
+ggplot(grid, aes(dis, pred)) +
+  geom_line(color = "blue") +
+  geom_point(data = Boston, aes(y = nox)) +
+  labs(y = "nox",
+       title = "Basis Spline 4 degrees of freedom (one knot)")
+
+```
+10.
+```{r Q10}
+set.seed(1)
+train <- sample(1:nrow(College), nrow(College) * .8)
+
+regfit.fwd <- regsubsets(Outstate ~ ., College, 
+                         method = "forward", subset = train)
+# plot(regfit.fwd ,scale ="r2")
+# plot(regfit.fwd ,scale ="adjr2")
+# plot(regfit.fwd ,scale ="Cp")
+plot(regfit.fwd ,scale ="bic")
+# use the most parsimonious model from BIC
+# Private, Room.Board, Terminal, perc.alumni, Expend, Grad.Rate
+gam.college <- gam::gam(Outstate ~ Private + gam::s(Room.Board, df=4) + gam::s(Terminal, df = 4) + gam::s(perc.alumni, df=4) + gam::s(Expend, df=4) + gam::s(Grad.Rate, df=4), data = College)
+plot(gam.college, se=T, col="blue")
+summary(gam.college)
+```
+
+11.
+```{r Q11}
+library(viridis)
+df <- tibble(
+  x1 = seq(1:100),
+  x2 = x1^2,
+  y = x1 + x2 + rnorm(100)
+)
+beta1 <- vector("numeric", 1000)
+beta2 <- vector("numeric", 1000)
+beta1[[1]] <- 1
+for(ii in seq_len(1000)) {
+  df <- df %>%
+    mutate(a = y - beta1[[ii]] * x1)
+  beta2[[ii]] <- lm(a ~ x2, data = df)$coef[2]
+  df <- df %>%
+    mutate(a = y - beta2[[ii]] * x2)
+  beta1[[ii]] <- lm(a ~ x1, data = df)$coef[2]
+}
+# takes about 3 iterations to achieve stable coefficients
+```
+
+
+
+
